@@ -31,6 +31,7 @@ interface AppContextType {
   checkLocation: () => Promise<void>;
   isLowEnergyMode: boolean;
   setLowEnergyMode: (enabled: boolean) => void;
+  clearAllTasks: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -51,14 +52,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const storedTasks = await AsyncStorage.getItem(TASKS_STORAGE_KEY);
         if (storedTasks) {
           setTasks(JSON.parse(storedTasks));
-        } else {
-          // Initial dummy data if storage is empty
-          setTasks([
-            { id: '1', title: '夕食の買い物', completed: false, type: 'private', elapsedTime: 0, isRunning: false, size: 'S' },
-            { id: '2', title: '週報の作成', completed: false, type: 'work', elapsedTime: 0, isRunning: false, size: 'M' },
-            { id: '3', title: 'ジムに行く', completed: false, type: 'private', elapsedTime: 0, isRunning: false, size: 'L' },
-            { id: '4', title: 'クライアントへのメール返信', completed: false, type: 'work', elapsedTime: 0, isRunning: false, size: 'S' },
-          ]);
         }
       } catch (e) {
         console.error('Failed to load tasks', e);
@@ -150,6 +143,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const clearAllTasks = async () => {
+      setTasks([]);
+      try {
+          await AsyncStorage.removeItem(TASKS_STORAGE_KEY);
+      } catch (e) {
+          console.error('Failed to clear tasks', e);
+      }
+  };
+
   useEffect(() => {
     checkLocation();
   }, []);
@@ -161,7 +163,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       workLocation, setWorkLocation,
       homeLocation, setHomeLocation,
       checkLocation,
-      isLowEnergyMode, setLowEnergyMode
+      isLowEnergyMode, setLowEnergyMode,
+      clearAllTasks
     }}>
       {children}
     </AppContext.Provider>

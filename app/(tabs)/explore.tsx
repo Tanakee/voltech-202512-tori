@@ -5,7 +5,7 @@ import { MapPin } from 'lucide-react-native';
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function SettingsScreen() {
-  const { mode, setWorkLocation, setHomeLocation, workLocation, homeLocation } = useApp();
+  const { mode, setWorkLocation, setHomeLocation, workLocation, homeLocation, clearAllTasks } = useApp();
   const theme = mode === 'work' ? Colors.work : Colors.private;
 
   const handleSetWork = async () => {
@@ -68,6 +68,38 @@ export default function SettingsScreen() {
           <TouchableOpacity style={[styles.button, { backgroundColor: Colors.private.primary }]} onPress={handleSetHome}>
             <Text style={styles.buttonText}>現在地を自宅に設定</Text>
           </TouchableOpacity>
+        </View>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>データ管理</Text>
+        <View style={styles.card}>
+            <Text style={styles.label}>全タスクの削除</Text>
+            <Text style={[styles.description, { marginTop: 8, marginBottom: 15 }]}>
+                登録されているすべてのタスクを削除します。この操作は取り消せません。
+            </Text>
+            <TouchableOpacity 
+                style={[styles.button, { backgroundColor: '#EF4444' }]} 
+                onPress={() => {
+                    Alert.alert(
+                        '全タスク削除',
+                        '本当にすべてのタスクを削除しますか？',
+                        [
+                            { text: 'キャンセル', style: 'cancel' },
+                            { 
+                                text: '削除する', 
+                                style: 'destructive', 
+                                onPress: async () => {
+                                    await clearAllTasks();
+                                    Alert.alert('完了', 'すべてのタスクを削除しました。');
+                                }
+                            }
+                        ]
+                    );
+                }}
+            >
+                <Text style={styles.buttonText}>全データを削除</Text>
+            </TouchableOpacity>
         </View>
       </View>
     </ScrollView>
