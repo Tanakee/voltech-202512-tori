@@ -3,8 +3,12 @@ import { Task, TaskSize, useApp } from '@/context/AppContext';
 import * as Haptics from 'expo-haptics';
 import { Check, Edit, Pause, Play, Plus, Trash2, X } from 'lucide-react-native';
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Modal, Platform, Animated as RNAnimated, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, LayoutAnimation, Modal, Platform, Animated as RNAnimated, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, UIManager, View } from 'react-native';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 interface TaskItemProps {
   task: Task;
@@ -19,6 +23,10 @@ export default function TaskItem({ task, onToggle, onDelete, onToggleTimer, mode
   const { addSubTask, toggleSubTask, deleteSubTask, updateTask } = useApp();
   const theme = task.type === 'work' ? Colors.work : Colors.private;
   const [displayTime, setDisplayTime] = useState(task.elapsedTime);
+  
+  // Animation Values
+  const fadeAnim = useRef(new RNAnimated.Value(1)).current;
+  const scaleAnim = useRef(new RNAnimated.Value(1)).current;
   
   // Edit Modal State
   const [isEditModalVisible, setEditModalVisible] = useState(false);
@@ -59,12 +67,30 @@ export default function TaskItem({ task, onToggle, onDelete, onToggleTimer, mode
     return `${secs}s`;
   };
 
+  const handleToggle = () => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      
+      RNAnimated.parallel([
+          RNAnimated.timing(fadeAnim, {
+              toValue: 0,
+              duration: 300,
+              useNativeDriver: true,
+          }),
+          RNAnimated.timing(scaleAnim, {
+              toValue: 0.95,
+              duration: 300,
+              useNativeDriver: true,
+          })
+      ]).start(() => {
+          LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+          onToggle(task.id);
+      });
+  };
+
   const handleAddSubTaskInModal = () => {
     if (modalNewSubTaskTitle.trim()) {
       addSubTask(task.id, modalNewSubTaskTitle.trim());
       setModalNewSubTaskTitle('');
-      // Keep input visible for multiple additions
-      // setModalSubTaskInputVisible(false); 
     }
   };
 
@@ -137,8 +163,6 @@ export default function TaskItem({ task, onToggle, onDelete, onToggleTimer, mode
   };
 
   const onSwipeableOpen = () => {
-      // Optional: Auto-complete on swipe could be implemented here instead of delete
-      // For now, let's keep delete as the swipe action based on "Swipe to delete/explode"
   };
 
   const getSizeColor = (size: string) => {
@@ -152,6 +176,7 @@ export default function TaskItem({ task, onToggle, onDelete, onToggleTimer, mode
 
   return (
     <>
+    <RNAnimated.View style={{ opacity: fadeAnim, transform: [{ scale: scaleAnim }] }}>
     <Swipeable
       ref={swipeableRef}
       renderRightActions={renderRightActions}
@@ -167,10 +192,7 @@ export default function TaskItem({ task, onToggle, onDelete, onToggleTimer, mode
             <View style={styles.mainContent}>
                 <TouchableOpacity 
                     style={[styles.checkCircle, task.completed && { backgroundColor: theme.primary, borderColor: theme.primary }]} 
-                    onPress={() => {
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                        onToggle(task.id);
-                    }}
+                    onPress={handleToggle}
                 >
                     {task.completed && <Check color="#FFF" size={16} />}
                 </TouchableOpacity>
@@ -223,6 +245,7 @@ export default function TaskItem({ task, onToggle, onDelete, onToggleTimer, mode
             )}
         </View>
     </Swipeable>
+    </RNAnimated.View>
 
     {/* Edit Modal */}
     <Modal
