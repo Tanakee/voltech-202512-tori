@@ -4,11 +4,14 @@ import ModeSwitcher from '@/components/ModeSwitcher';
 import TaskItem from '@/components/TaskItem';
 import { Colors } from '@/constants/theme';
 import { TaskSize, useApp } from '@/context/AppContext';
-import { Battery, BatteryCharging, ChevronDown, Plus } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
+import { Battery, BatteryCharging, ChevronDown, ClipboardList, Plus } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
-import { FlatList, Keyboard, KeyboardAvoidingView, Platform, SafeAreaView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { FlatList, Keyboard, KeyboardAvoidingView, Platform, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function HomeScreen() {
+  const router = useRouter();
   const { mode, tasks, addTask, toggleTask, deleteTask, toggleTaskTimer, isLowEnergyMode, setLowEnergyMode } = useApp();
   const [newTask, setNewTask] = useState('');
   const [selectedSize, setSelectedSize] = useState<TaskSize>('M');
@@ -32,11 +35,14 @@ export default function HomeScreen() {
 
   const theme = mode === 'work' ? Colors.work : Colors.private;
   
-  // Filter logic: Mode filter AND Low Energy filter
+  // Filter logic: Mode filter AND Low Energy filter AND Not Completed
   const filteredTasks = tasks.filter(t => {
       const modeMatch = t.type === mode;
       const energyMatch = isLowEnergyMode ? t.size === 'S' : true;
-      return modeMatch && energyMatch;
+      return modeMatch && energyMatch && !t.completed;
+  }).sort((a, b) => {
+      // Sort logic (can be simplified since all are not completed)
+      return 0;
   });
   
   const isAnyTaskRunning = tasks.some(t => t.isRunning);
@@ -47,6 +53,15 @@ export default function HomeScreen() {
       setNewTask('');
       setSelectedSize('M'); // Reset to default
     }
+  };
+
+  const getSizeColor = (size: string) => {
+      switch(size) {
+          case 'S': return '#4ADE80'; // Green
+          case 'M': return '#FACC15'; // Yellow
+          case 'L': return '#F87171'; // Red
+          default: return '#CCC';
+      }
   };
 
   return (
@@ -64,6 +79,14 @@ export default function HomeScreen() {
               <BalanceGauge />
               
               <View style={styles.filterContainer}>
+                  <TouchableOpacity 
+                    style={styles.historyBtn} 
+                    onPress={() => router.push('/completed')}
+                  >
+                      <ClipboardList color={theme.text} size={20} />
+                      <Text style={[styles.historyBtnText, { color: theme.text }]}>チェック済み</Text>
+                  </TouchableOpacity>
+
                   <TouchableOpacity 
                     style={[styles.energyBtn, isLowEnergyMode && styles.energyBtnActive]} 
                     onPress={() => setLowEnergyMode(!isLowEnergyMode)}
@@ -119,7 +142,7 @@ export default function HomeScreen() {
                           key={size} 
                           style={[
                               styles.sizeOption, 
-                              selectedSize === size && { backgroundColor: theme.primary, borderColor: theme.primary }
+                              selectedSize === size && { backgroundColor: getSizeColor(size), borderColor: getSizeColor(size) }
                           ]}
                           onPress={() => setSelectedSize(size)}
                       >
@@ -252,7 +275,19 @@ const styles = StyleSheet.create({
   filterContainer: {
       paddingHorizontal: 20,
       marginBottom: 10,
-      alignItems: 'flex-end',
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+  },
+  historyBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 6,
+  },
+  historyBtnText: {
+      marginLeft: 6,
+      fontSize: 12,
+      fontWeight: '600',
   },
   energyBtn: {
       flexDirection: 'row',

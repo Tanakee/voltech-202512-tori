@@ -1,6 +1,6 @@
 import { useApp } from '@/context/AppContext';
 import React, { useEffect } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Dimensions, StyleSheet, Text, View } from 'react-native';
 import Animated, {
     Easing,
     cancelAnimation,
@@ -11,19 +11,28 @@ import Animated, {
     withTiming
 } from 'react-native-reanimated';
 
+const SCREEN_WIDTH = Dimensions.get('window').width;
+
 export default function Mascot() {
   const { tasks } = useApp();
   const runningTask = tasks.find(t => t.isRunning);
   
   const translateY = useSharedValue(0);
+  const translateX = useSharedValue(0);
   const rotate = useSharedValue(0);
   const scale = useSharedValue(1);
 
   useEffect(() => {
-    // Reset animations
+    // Reset animations and values
     cancelAnimation(translateY);
+    cancelAnimation(translateX);
     cancelAnimation(rotate);
     cancelAnimation(scale);
+
+    translateY.value = 0;
+    translateX.value = 0;
+    rotate.value = 0;
+    scale.value = 1;
 
     if (!runningTask) {
       // Idle animation: slight breathing
@@ -32,62 +41,65 @@ export default function Mascot() {
         -1,
         true
       );
-      translateY.value = 0;
-      rotate.value = 0;
       return;
     }
 
     // Active animation based on task size
     switch (runningTask.size) {
       case 'S':
-        // Fast, light bouncing
+        // Fast flying
         translateY.value = withRepeat(
           withSequence(
-            withTiming(-10, { duration: 150, easing: Easing.out(Easing.quad) }),
-            withTiming(0, { duration: 150, easing: Easing.in(Easing.quad) })
+            withTiming(-10, { duration: 300 }),
+            withTiming(0, { duration: 300 })
           ),
           -1,
-          false
+          true
         );
-        rotate.value = withRepeat(
+        translateX.value = withRepeat(
             withSequence(
-                withTiming(-5, { duration: 150 }),
-                withTiming(5, { duration: 150 })
+                withTiming(-15, { duration: 400 }),
+                withTiming(15, { duration: 400 })
             ),
             -1,
             true
         );
-        scale.value = 1;
         break;
 
       case 'M':
-        // Normal steady work
+        // Steady flying
         translateY.value = withRepeat(
           withSequence(
-            withTiming(-5, { duration: 500, easing: Easing.inOut(Easing.ease) }),
-            withTiming(0, { duration: 500, easing: Easing.inOut(Easing.ease) })
+            withTiming(-5, { duration: 1000 }),
+            withTiming(0, { duration: 1000 })
           ),
           -1,
           true
         );
-        rotate.value = 0;
-        scale.value = 1;
+        translateX.value = withRepeat(
+            withSequence(
+                withTiming(-5, { duration: 2000 }),
+                withTiming(5, { duration: 2000 })
+            ),
+            -1,
+            true
+        );
         break;
 
       case 'L':
-        // Heavy, slow lifting
+        // Heavy lifting (vertical only)
         translateY.value = withRepeat(
-          withSequence(
-            withTiming(5, { duration: 1000, easing: Easing.out(Easing.cubic) }), // Squat down
-            withTiming(0, { duration: 800, easing: Easing.in(Easing.cubic) })   // Stand up
-          ),
-          -1,
-          true
-        );
+            withSequence(
+              withTiming(5, { duration: 1500 }),
+              withTiming(0, { duration: 1000 })
+            ),
+            -1,
+            true
+          );
         scale.value = withRepeat(
             withSequence(
-                withTiming(0.95, { duration: 1000 }), // Compress
-                withTiming(1.0, { duration: 800 })
+                withTiming(0.95, { duration: 1500 }),
+                withTiming(1.0, { duration: 1000 })
             ),
             -1,
             true
@@ -100,6 +112,7 @@ export default function Mascot() {
     return {
       transform: [
         { translateY: translateY.value },
+        { translateX: translateX.value },
         { rotate: `${rotate.value}deg` },
         { scale: scale.value }
       ],
@@ -110,19 +123,19 @@ export default function Mascot() {
     if (!runningTask) return '🐦'; // Idle bird
     
     switch (runningTask.size) {
-      case 'S': return '🐥'; // Chick for small tasks (fast)
-      case 'M': return '🦅'; // Eagle for medium (steady)
-      case 'L': return '🦉'; // Owl for large (heavy/wise) or maybe something sweating
+      case 'S': return '🚀'; // Rocket/Fast bird for S
+      case 'M': return '🦅'; // Eagle for M
+      case 'L': return '🚁'; // Helicopter/Heavy lifter for L
     }
-    return '🐦';
+    return '🕊️';
   };
 
   const getStatusText = () => {
       if (!runningTask) return 'Zzz...';
       switch (runningTask.size) {
-          case 'S': return 'サクサク♪';
-          case 'M': return 'フムフム...';
-          case 'L': return 'ヨイショ...';
+          case 'S': return 'ビューン！';
+          case 'M': return '順調です';
+          case 'L': return '重い...';
       }
   };
 
@@ -141,18 +154,18 @@ export default function Mascot() {
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    bottom: 90, // Above the input area
+    top: 60, // Move to top
     right: 20,
     alignItems: 'center',
     zIndex: 10,
-    pointerEvents: 'none', // Let touches pass through if needed, or remove if interactive
+    pointerEvents: 'none',
   },
   mascot: {
     fontSize: 50,
   },
   bubble: {
       position: 'absolute',
-      top: -30,
+      top: -35,
       right: 40,
       backgroundColor: '#FFF',
       paddingHorizontal: 10,
