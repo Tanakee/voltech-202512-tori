@@ -1,4 +1,3 @@
-import BalanceGauge from '@/components/BalanceGauge';
 import Mascot from '@/components/Mascot';
 import ModeSwitcher from '@/components/ModeSwitcher';
 import TaskItem from '@/components/TaskItem';
@@ -76,7 +75,6 @@ export default function HomeScreen() {
           {!isKeyboardVisible ? (
             <>
               <ModeSwitcher />
-              <BalanceGauge />
               
               <View style={styles.filterContainer}>
                   <TouchableOpacity 
