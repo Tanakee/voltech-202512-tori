@@ -25,6 +25,24 @@ export const Colors = {
     tabIconDefault: '#9BA1A6',
     tabIconSelected: tintColorDark,
   },
+  work: {
+    primary: '#2563EB', // Vibrant Blue
+    secondary: '#60A5FA',
+    background: '#EFF6FF', // Light Blue bg
+    card: '#FFFFFF',
+    text: '#1E3A8A',
+    accent: '#1D4ED8',
+    tint: '#2563EB',
+  },
+  private: {
+    primary: '#EA580C', // Vibrant Orange
+    secondary: '#FB923C',
+    background: '#FFF7ED', // Light Orange bg
+    card: '#FFFFFF',
+    text: '#7C2D12',
+    accent: '#C2410C',
+    tint: '#EA580C',
+  }
 };
 
 export const Fonts = Platform.select({
