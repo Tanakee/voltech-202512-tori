@@ -22,6 +22,8 @@
     "@react-three/fiber": "^9.4.2",
     "@types/three": "^0.182.0",
     "expo": "~54.0.25",
+    "expo-audio": "~1.1.0",
+    "expo-av": "~16.0.8",
     "expo-constants": "~18.0.10",
     "expo-font": "~14.0.9",
     "expo-gl": "~16.0.9",

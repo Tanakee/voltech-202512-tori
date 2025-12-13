@@ -1,8 +1,11 @@
 import { useApp } from '@/context/AppContext';
 import { Ionicons } from '@expo/vector-icons';
 import { Canvas, useFrame } from '@react-three/fiber';
+import { useAudioPlayer } from 'expo-audio';
+import { Audio } from 'expo-av';
+import { usePathname } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Modal, PanResponder, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Modal, PanResponder, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import * as THREE from 'three';
 
 // 球面上の位置と回転を計算するヘルパー
@@ -27,6 +30,42 @@ const getFibonacciPosition = (index: number, total: number) => {
   const theta = Math.PI * (1 + Math.sqrt(5)) * index;
   return getPositionOnSphere(1.93, phi, theta);
 };
+
+function BGMPlayer() {
+  // Using a reliable direct MP3 link for royalty-free ambient music
+  // Source: Kevin MacLeod - "Music for Manatees" (incompetech.com)
+  // Licensed under Creative Commons: By Attribution 4.0 License
+  const player = useAudioPlayer('https://incompetech.com/music/royalty-free/mp3-royaltyfree/Music%20for%20Manatees.mp3');
+  const pathname = usePathname();
+  const isFocused = pathname === '/planet';
+  const [shouldPlay, setShouldPlay] = useState(true);
+
+  useEffect(() => {
+    if (player) {
+        player.loop = true;
+        player.volume = 0.3;
+        
+        if (isFocused && shouldPlay) {
+            player.play();
+        } else {
+            player.pause();
+        }
+    }
+  }, [player, isFocused, shouldPlay]);
+
+  const toggleSound = () => {
+      setShouldPlay(prev => !prev);
+  };
+
+  return (
+      <TouchableOpacity 
+        style={styles.bgmButton} 
+        onPress={toggleSound}
+      >
+          <Ionicons name={shouldPlay ? "volume-high" : "volume-mute"} size={20} color="#FFF" />
+      </TouchableOpacity>
+  );
+}
 
 // 木（Private用）
 function PlanetTree({ position, rotation, color }: { position: [number, number, number], rotation: [number, number, number], color: string }) {
@@ -345,7 +384,7 @@ function StarField() {
 }
 
 export default function PlanetGarden() {
-  const { tasks, shovels, pickaxes, items, useTool, removedDecorationIds, restoreDecoration } = useApp();
+  const { tasks, shovels, pickaxes, items, useTool, removedDecorationIds, restoreDecoration, debugRemoveDecoration } = useApp();
   const groupRef = useRef<THREE.Group>(null);
   const isDragging = useRef(false);
   const velocity = useRef({ x: 0, y: 0 });
@@ -353,6 +392,46 @@ export default function PlanetGarden() {
   
   const [selectedDecoration, setSelectedDecoration] = useState<{ id: string, type: string, position: [number, number, number] } | null>(null);
   const [showInventory, setShowInventory] = useState(false);
+
+  // ... (existing code)
+
+  const handleRemove = () => {
+      if (!selectedDecoration) return;
+
+      const { id, type } = selectedDecoration;
+      
+      // DEBUG: Force remove without tools
+      const debugMode = true;
+
+      if (debugMode) {
+          playSE(type);
+          setSelectedDecoration(null);
+          debugRemoveDecoration(id);
+          return;
+      }
+      
+      let toolType: 'shovel' | 'pickaxe' = 'shovel';
+      if (type === 'rock' || type === 'crystal') {
+          toolType = 'pickaxe';
+      }
+
+      const result = useTool(toolType, id, type);
+      
+      if (result.success) {
+          playSE(type); // Play Sound Effect
+          setSelectedDecoration(null);
+          if (result.droppedItem) {
+              const itemName = result.droppedItem === 'rusty_watch' ? '錆びた時計' : '壊れた機械';
+              Alert.alert('アイテム獲得！', `「${itemName}」を手に入れました！`);
+          }
+      } else {
+          if (toolType === 'pickaxe') {
+              Alert.alert('ピッケルが足りません', '大きなタスクを完了するか、運が良いと手に入ります。');
+          } else {
+              Alert.alert('シャベルが足りません', 'タスクを完了してシャベルを手に入れましょう（1日3回まで）。');
+          }
+      }
+  };
 
   // デコレーションの自動生成（復活）ロジック
   // 雑草(70%) > 岩(25%) > クリスタル(5%)
@@ -452,35 +531,63 @@ export default function PlanetGarden() {
       return decorations.filter(d => !removedDecorationIds.includes(d.id));
   }, [decorations, removedDecorationIds]);
 
+  // Sound Effects
+  const [soundEffect, setSoundEffect] = useState<Audio.Sound | null>(null);
+
+  useEffect(() => {
+      async function loadSound() {
+          try {
+              // Pre-load the single reliable sound file
+              const { sound } = await Audio.Sound.createAsync(
+                  { uri: 'https://actions.google.com/sounds/v1/impacts/crash.ogg' }
+              );
+              setSoundEffect(sound);
+          } catch (e) {
+              console.log('Error loading SE', e);
+          }
+      }
+      loadSound();
+
+      return () => {
+          soundEffect?.unloadAsync();
+      };
+  }, []);
+
+  const playSE = async (type: string) => {
+      if (!soundEffect) return;
+
+      let rate = 1.0;
+      let volume = 1.0;
+
+      // Adjust pitch/rate to simulate different materials
+      // This is a fallback strategy to ensure reliable playback
+      if (type === 'weed') {
+          rate = 0.5; // Lower pitch for digging
+          volume = 0.8;
+      } else if (type === 'rock') {
+          rate = 1.0; // Normal pitch
+          volume = 1.0;
+      } else if (type === 'crystal') {
+          rate = 2.0; // Higher pitch for glass
+          volume = 0.6;
+      }
+
+      try {
+          // Reset and play immediately with new settings
+          await soundEffect.stopAsync();
+          await soundEffect.setRateAsync(rate, true);
+          await soundEffect.setVolumeAsync(volume);
+          await soundEffect.replayAsync();
+      } catch (e) {
+          console.log('Error playing SE', e);
+      }
+  };
+
   const handleDecorationClick = (id: string, type: string, position: [number, number, number]) => {
       setSelectedDecoration({ id, type, position });
   };
 
-  const handleRemove = () => {
-      if (!selectedDecoration) return;
 
-      const { id, type } = selectedDecoration;
-      let toolType: 'shovel' | 'pickaxe' = 'shovel';
-      if (type === 'rock' || type === 'crystal') {
-          toolType = 'pickaxe';
-      }
-
-      const result = useTool(toolType, id, type);
-      
-      if (result.success) {
-          setSelectedDecoration(null);
-          if (result.droppedItem) {
-              const itemName = result.droppedItem === 'rusty_watch' ? '錆びた時計' : '壊れた機械';
-              Alert.alert('アイテム獲得！', `「${itemName}」を手に入れました！`);
-          }
-      } else {
-          if (toolType === 'pickaxe') {
-              Alert.alert('ピッケルが足りません', '大きなタスクを完了するか、運が良いと手に入ります。');
-          } else {
-              Alert.alert('シャベルが足りません', 'タスクを完了してシャベルを手に入れましょう（1日3回まで）。');
-          }
-      }
-  };
 
   const panResponder = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
@@ -515,6 +622,7 @@ export default function PlanetGarden() {
 
   return (
     <View style={styles.container} {...panResponder.panHandlers}>
+      <BGMPlayer />
       <View style={styles.header}>
         <Text style={styles.title}>Your Planet</Text>
         <Text style={styles.subtitle}>{completedTasks.length} objects built</Text>
@@ -624,6 +732,18 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000000',
+  },
+  bgmButton: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 20,
   },
   header: {
       position: 'absolute',

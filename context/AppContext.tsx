@@ -50,6 +50,7 @@ interface AppContextType {
   useTool: (tool: 'shovel' | 'pickaxe', decorationId: string, targetType?: string) => { success: boolean; droppedItem: string | null };
   removedDecorationIds: string[];
   restoreDecoration: (id: string) => void;
+  debugRemoveDecoration: (id: string) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -382,6 +383,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     checkLocation();
   }, [homeLocation, workLocation]);
 
+
+
+  const debugRemoveDecoration = useCallback((id: string) => {
+    setRemovedDecorationIds(prev => [...prev, id]);
+  }, []);
+
   return (
     <AppContext.Provider value={{
       mode, setMode,
@@ -394,7 +401,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       isLowEnergyMode, setLowEnergyMode,
       deleteCompletedTasks,
       clearAllTasks,
-      shovels, pickaxes, items, useTool, removedDecorationIds, restoreDecoration // Add new values
+      shovels, pickaxes, items, useTool, removedDecorationIds, restoreDecoration, debugRemoveDecoration
     }}>
       {children}
     </AppContext.Provider>
