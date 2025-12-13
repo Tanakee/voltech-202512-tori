@@ -31,7 +31,7 @@ export default function BalanceGauge() {
     calculateTotalTime(); // Initial calculation
 
     const isAnyRunning = tasks.some(t => t.isRunning);
-    let interval: NodeJS.Timeout;
+    let interval: any;
 
     if (isAnyRunning) {
       interval = setInterval(calculateTotalTime, 1000);
