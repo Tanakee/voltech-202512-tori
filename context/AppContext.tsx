@@ -5,6 +5,12 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 export type Mode = 'work' | 'private';
 export type TaskSize = 'S' | 'M' | 'L';
 
+export interface SubTask {
+  id: string;
+  title: string;
+  completed: boolean;
+}
+
 export interface Task {
   id: string;
   title: string;
@@ -14,16 +20,17 @@ export interface Task {
   isRunning: boolean;
   startTime?: number;
   size: TaskSize;
+  subTasks?: SubTask[];
 }
 
 interface AppContextType {
   mode: Mode;
   setMode: (mode: Mode) => void;
   tasks: Task[];
-  addTask: (title: string, size: TaskSize) => void;
-  toggleTask: (id: string) => void;
-  deleteTask: (id: string) => void;
-  toggleTaskTimer: (id: string) => void;
+  updateTask: (id: string, updates: Partial<Task>) => void;
+  addSubTask: (taskId: string, title: string) => void;
+  toggleSubTask: (taskId: string, subTaskId: string) => void;
+  deleteSubTask: (taskId: string, subTaskId: string) => void;
   workLocation: Location.LocationObject | null;
   setWorkLocation: (loc: Location.LocationObject) => void;
   homeLocation: Location.LocationObject | null;
@@ -83,8 +90,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       type: mode,
       elapsedTime: 0,
       isRunning: false,
-      size
+      size,
+      subTasks: []
     }]);
+  };
+
+  const updateTask = (id: string, updates: Partial<Task>) => {
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
   };
 
   const toggleTask = (id: string) => {
@@ -93,6 +105,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteTask = (id: string) => {
     setTasks(prev => prev.filter(t => t.id !== id));
+  };
+
+  const addSubTask = (taskId: string, title: string) => {
+    setTasks(prev => prev.map(t => {
+      if (t.id === taskId) {
+        const newSubTask: SubTask = {
+          id: Date.now().toString() + Math.random().toString(36).slice(2, 9),
+          title,
+          completed: false
+        };
+        return { ...t, subTasks: [...(t.subTasks || []), newSubTask] };
+      }
+      return t;
+    }));
+  };
+
+  const toggleSubTask = (taskId: string, subTaskId: string) => {
+    setTasks(prev => prev.map(t => {
+      if (t.id === taskId) {
+        return {
+          ...t,
+          subTasks: t.subTasks?.map(st => 
+            st.id === subTaskId ? { ...st, completed: !st.completed } : st
+          )
+        };
+      }
+      return t;
+    }));
+  };
+
+  const deleteSubTask = (taskId: string, subTaskId: string) => {
+    setTasks(prev => prev.map(t => {
+      if (t.id === taskId) {
+        return {
+          ...t,
+          subTasks: t.subTasks?.filter(st => st.id !== subTaskId)
+        };
+      }
+      return t;
+    }));
   };
 
   const toggleTaskTimer = (id: string) => {
@@ -159,7 +211,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <AppContext.Provider value={{
       mode, setMode,
-      tasks, addTask, toggleTask, deleteTask, toggleTaskTimer,
+      tasks, addTask, updateTask, toggleTask, deleteTask, toggleTaskTimer,
+      addSubTask, toggleSubTask, deleteSubTask,
       workLocation, setWorkLocation,
       homeLocation, setHomeLocation,
       checkLocation,

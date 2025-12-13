@@ -6,7 +6,8 @@ import { Colors } from '@/constants/theme';
 import { TaskSize, useApp } from '@/context/AppContext';
 import { Battery, BatteryCharging, ChevronDown, Plus } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
-import { FlatList, Keyboard, KeyboardAvoidingView, Platform, SafeAreaView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { FlatList, Keyboard, KeyboardAvoidingView, Platform, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function HomeScreen() {
   const { mode, tasks, addTask, toggleTask, deleteTask, toggleTaskTimer, isLowEnergyMode, setLowEnergyMode } = useApp();
