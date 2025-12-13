@@ -1,8 +1,7 @@
 import { useApp } from '@/context/AppContext';
-import { OrbitControls } from '@react-three/drei/native';
-import { Canvas } from '@react-three/fiber';
-import React, { useMemo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Canvas, useFrame } from '@react-three/fiber';
+import React, { useMemo, useRef } from 'react';
+import { PanResponder, StyleSheet, Text, View } from 'react-native';
 import * as THREE from 'three';
 
 // 球面上の位置と回転を計算するヘルパー
@@ -25,7 +24,7 @@ const getPositionOnSphere = (r: number, phi: number, theta: number) => {
 function PlanetTree({ position, rotation, color, type }: { position: [number, number, number], rotation: [number, number, number], color: string, type: 'work' | 'private' }) {
   return (
     <group position={position} rotation={rotation}>
-      {/* 幹: 少し埋めるためにy位置を調整 */}
+      {/* 幹 */}
       <mesh position={[0, 0.15, 0]}>
         <cylinderGeometry args={[0.05, 0.08, 0.4, 5]} />
         <meshStandardMaterial color="#8B4513" />
@@ -47,26 +46,71 @@ function PlanetTree({ position, rotation, color, type }: { position: [number, nu
 function Rock({ position, rotation }: { position: [number, number, number], rotation: [number, number, number] }) {
   return (
     <mesh position={position} rotation={rotation}>
-      {/* 少し埋める */}
       <dodecahedronGeometry args={[0.15, 0]} />
       <meshStandardMaterial color="#64748B" flatShading />
     </mesh>
   );
 }
 
-function Pond({ position, rotation }: { position: [number, number, number], rotation: [number, number, number] }) {
+// 光るクリスタルの鉱脈
+function CrystalCluster({ position, rotation }: { position: [number, number, number], rotation: [number, number, number] }) {
   return (
     <group position={position} rotation={rotation}>
-      <mesh rotation={[-Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[0.5, 32]} />
-        <meshStandardMaterial color="#38BDF8" opacity={0.8} transparent depthWrite={false} />
+      {/* メインのクリスタル */}
+      <mesh position={[0, 0.3, 0]}>
+        <cylinderGeometry args={[0, 0.15, 0.8, 4]} />
+        <meshStandardMaterial color="#A78BFA" emissive="#7C3AED" emissiveIntensity={0.5} roughness={0.1} />
       </mesh>
+      {/* サブのクリスタル1 */}
+      <mesh position={[0.15, 0.2, 0.1]} rotation={[0.2, 0, 0.2]}>
+        <cylinderGeometry args={[0, 0.1, 0.5, 4]} />
+        <meshStandardMaterial color="#A78BFA" emissive="#7C3AED" emissiveIntensity={0.5} roughness={0.1} />
+      </mesh>
+      {/* サブのクリスタル2 */}
+      <mesh position={[-0.1, 0.25, -0.1]} rotation={[-0.2, 0, -0.1]}>
+        <cylinderGeometry args={[0, 0.12, 0.6, 4]} />
+        <meshStandardMaterial color="#A78BFA" emissive="#7C3AED" emissiveIntensity={0.5} roughness={0.1} />
+      </mesh>
+      
+      {/* 光源 */}
+      <pointLight color="#A78BFA" intensity={1.5} distance={3} decay={2} position={[0, 0.5, 0]} />
     </group>
   );
 }
 
+// 自動回転＆慣性コンポーネント
+function AutoRotator({ groupRef, isDragging, velocity }: { 
+  groupRef: React.RefObject<THREE.Group>, 
+  isDragging: React.MutableRefObject<boolean>,
+  velocity: React.MutableRefObject<{ x: number, y: number }>
+}) {
+  useFrame(() => {
+    if (groupRef.current) {
+      if (!isDragging.current) {
+        // 慣性回転
+        if (Math.abs(velocity.current.x) > 0.0001 || Math.abs(velocity.current.y) > 0.0001) {
+          groupRef.current.rotation.y += velocity.current.x;
+          groupRef.current.rotation.x += velocity.current.y;
+          
+          // 減衰 (摩擦)
+          velocity.current.x *= 0.95;
+          velocity.current.y *= 0.95;
+        } else {
+          // 完全に止まったら自動回転（Y軸のみ）
+          groupRef.current.rotation.y += 0.002;
+        }
+      }
+    }
+  });
+  return null;
+}
+
 export default function PlanetGarden() {
   const { tasks } = useApp();
+  const groupRef = useRef<THREE.Group>(null);
+  const rotationRef = useRef({ x: 0, y: 0 });
+  const isDragging = useRef(false);
+  const velocity = useRef({ x: 0, y: 0 });
 
   const completedTasks = useMemo(() => {
     return tasks
@@ -79,7 +123,6 @@ export default function PlanetGarden() {
     return completedTasks.map((task, index) => {
       const phi = Math.acos(1 - 2 * (index + 0.5) / count);
       const theta = Math.PI * (1 + Math.sqrt(5)) * (index + 0.5);
-      // 半径を少し小さくして(1.95)、木が浮かないようにする
       return {
         id: task.id,
         ...getPositionOnSphere(1.95, phi, theta),
@@ -89,15 +132,10 @@ export default function PlanetGarden() {
     });
   }, [completedTasks]);
 
-  // 固定の装飾（池と岩）
   const decorations = useMemo(() => {
     const items = [];
-    
-    // 池 (2つ) - 半径を2.05にして少し浮かせる
-    items.push({ type: 'pond', ...getPositionOnSphere(2.05, Math.PI / 4, 0) });
-    items.push({ type: 'pond', ...getPositionOnSphere(2.05, Math.PI / 1.5, Math.PI) });
-
-    // 岩 (5つ)
+    items.push({ type: 'crystal', ...getPositionOnSphere(1.9, Math.PI / 4, 0) });
+    items.push({ type: 'crystal', ...getPositionOnSphere(1.9, Math.PI / 1.5, Math.PI) });
     for (let i = 0; i < 5; i++) {
         items.push({ 
             type: 'rock', 
@@ -107,51 +145,78 @@ export default function PlanetGarden() {
     return items;
   }, []);
 
+  const panResponder = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: () => true,
+    onPanResponderGrant: () => {
+      isDragging.current = true;
+      velocity.current = { x: 0, y: 0 }; // タッチしたら慣性ストップ
+      if (groupRef.current) {
+        rotationRef.current = {
+          x: groupRef.current.rotation.x,
+          y: groupRef.current.rotation.y
+        };
+      }
+    },
+    onPanResponderMove: (_, gestureState) => {
+      if (groupRef.current) {
+        groupRef.current.rotation.y = rotationRef.current.y + gestureState.dx * 0.005;
+        groupRef.current.rotation.x = rotationRef.current.x + gestureState.dy * 0.005;
+      }
+    },
+    onPanResponderRelease: (_, gestureState) => {
+      isDragging.current = false;
+      // 離した瞬間の速度をセット（慣性用）
+      velocity.current = { 
+        x: gestureState.vx * 0.015, 
+        y: gestureState.vy * 0.015 
+      };
+    },
+    onPanResponderTerminate: () => {
+      isDragging.current = false;
+    },
+  }), []);
+
   return (
-    <View style={styles.container}>
+    <View style={styles.container} {...panResponder.panHandlers}>
       <View style={styles.header}>
         <Text style={styles.title}>Your Planet</Text>
         <Text style={styles.subtitle}>{completedTasks.length} trees planted</Text>
       </View>
       <Canvas camera={{ position: [0, 0, 6], fov: 50 }} dpr={[1, 2]}>
-        <ambientLight intensity={0.6} />
-        <directionalLight position={[10, 10, 5]} intensity={1} />
-        <pointLight position={[-10, -10, -5]} intensity={0.5} color="#FFF" />
+        <ambientLight intensity={0.4} />
+        <directionalLight position={[10, 10, 5]} intensity={0.8} />
+        <pointLight position={[-10, -10, -5]} intensity={0.3} color="#FFF" />
         
-        {/* 惑星本体 */}
-        <mesh>
-          <icosahedronGeometry args={[2, 1]} />
-          <meshStandardMaterial color="#4ADE80" flatShading />
-        </mesh>
+        <group ref={groupRef}>
+          {/* 惑星本体 */}
+          <mesh>
+            <icosahedronGeometry args={[2, 1]} />
+            <meshStandardMaterial color="#4ADE80" flatShading roughness={0.8} />
+          </mesh>
 
-        {/* 装飾（池・岩） */}
-        {decorations.map((item, index) => (
-            item.type === 'pond' ? (
-                <Pond key={`pond-${index}`} position={item.position} rotation={item.rotation} />
-            ) : (
-                <Rock key={`rock-${index}`} position={item.position} rotation={item.rotation} />
-            )
-        ))}
+          {/* 装飾 */}
+          {decorations.map((item, index) => (
+              item.type === 'crystal' ? (
+                  <CrystalCluster key={`crystal-${index}`} position={item.position} rotation={item.rotation} />
+              ) : (
+                  <Rock key={`rock-${index}`} position={item.position} rotation={item.rotation} />
+              )
+          ))}
 
-        {/* 木々 */}
-        {trees.map(tree => (
-          <PlanetTree 
-            key={tree.id} 
-            position={tree.position} 
-            rotation={tree.rotation} 
-            color={tree.color} 
-            type={tree.type} 
-          />
-        ))}
+          {/* 木々 */}
+          {trees.map(tree => (
+            <PlanetTree 
+              key={tree.id} 
+              position={tree.position} 
+              rotation={tree.rotation} 
+              color={tree.color} 
+              type={tree.type} 
+            />
+          ))}
+        </group>
 
-        <OrbitControls 
-            enableZoom={false} 
-            autoRotate 
-            autoRotateSpeed={0.5}
-            minPolarAngle={0}
-            maxPolarAngle={Math.PI}
-            enablePan={false}
-        />
+        <AutoRotator groupRef={groupRef} isDragging={isDragging} velocity={velocity} />
       </Canvas>
     </View>
   );
