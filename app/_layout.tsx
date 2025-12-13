@@ -20,19 +20,25 @@ import { AppProvider } from '@/context/AppContext';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { Platform } from 'react-native';
+
+// ... (imports)
+
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const [loaded] = useFonts({
       ...MaterialIcons.font,
   });
 
+  const isReady = Platform.OS === 'web' || loaded;
+
   useEffect(() => {
-    if (loaded) {
+    if (isReady) {
       SplashScreen.hideAsync();
     }
-  }, [loaded]);
+  }, [isReady]);
 
-  if (!loaded) {
+  if (!isReady) {
     return null;
   }
 
