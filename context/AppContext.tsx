@@ -44,8 +44,11 @@ interface AppContextType {
   registerLocation: (type: 'home' | 'work') => Promise<void>;
   isLowEnergyMode: boolean;
   setLowEnergyMode: (enabled: boolean) => void;
-  deleteCompletedTasks: () => void;
-  clearAllTasks: () => Promise<void>;
+  shovels: number;
+  pickaxes: number;
+  items: Record<string, number>;
+  useTool: (tool: 'shovel' | 'pickaxe', decorationId: string, targetType?: string) => { success: boolean; droppedItem: string | null };
+  removedDecorationIds: string[];
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -53,24 +56,9 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 const TASKS_STORAGE_KEY = 'voltech_tasks_v1';
 const HOME_LOC_KEY = 'voltech_home_loc_v1';
 const WORK_LOC_KEY = 'voltech_work_loc_v1';
+const GARDEN_STORAGE_KEY = 'voltech_garden_data_v1';
 
-function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: number, lon2: number) {
-  var R = 6371; // Radius of the earth in km
-  var dLat = deg2rad(lat2-lat1);
-  var dLon = deg2rad(lon2-lon1); 
-  var a = 
-    Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
-    Math.sin(dLon/2) * Math.sin(dLon/2)
-    ; 
-  var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
-  var d = R * c; // Distance in km
-  return d;
-}
-
-function deg2rad(deg: number) {
-  return deg * (Math.PI/180)
-}
+// ... (helper functions)
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [mode, setMode] = useState<Mode>('private');
@@ -79,7 +67,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [homeLocation, setHomeLocation] = useState<Location.LocationObject | null>(null);
   const [isLowEnergyMode, setLowEnergyMode] = useState(false);
 
-  // Load tasks and locations
+  // Garden State
+  const [shovels, setShovels] = useState(0);
+  const [pickaxes, setPickaxes] = useState(0);
+  const [items, setItems] = useState<Record<string, number>>({});
+  const [dailyShovelCount, setDailyShovelCount] = useState(0);
+  const [lastShovelDate, setLastShovelDate] = useState('');
+  const [removedDecorationIds, setRemovedDecorationIds] = useState<string[]>([]);
+
+  // Load tasks, locations, and garden data
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -91,6 +87,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         const storedWork = await AsyncStorage.getItem(WORK_LOC_KEY);
         if (storedWork) setWorkLocation(JSON.parse(storedWork));
+
+        const storedGarden = await AsyncStorage.getItem(GARDEN_STORAGE_KEY);
+        if (storedGarden) {
+            const gardenData = JSON.parse(storedGarden);
+            setShovels(gardenData.shovels || 0);
+            setPickaxes(gardenData.pickaxes || 0);
+            setItems(gardenData.items || {});
+            setDailyShovelCount(gardenData.dailyShovelCount || 0);
+            setLastShovelDate(gardenData.lastShovelDate || '');
+            setRemovedDecorationIds(gardenData.removedDecorationIds || []);
+        }
       } catch (e) {
         console.error('Failed to load data', e);
       }
@@ -111,7 +118,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (workLocation) AsyncStorage.setItem(WORK_LOC_KEY, JSON.stringify(workLocation)).catch(e => console.error(e));
   }, [homeLocation, workLocation]);
 
+  // Save garden data
+  useEffect(() => {
+      const gardenData = { shovels, pickaxes, items, dailyShovelCount, lastShovelDate, removedDecorationIds };
+      AsyncStorage.setItem(GARDEN_STORAGE_KEY, JSON.stringify(gardenData)).catch(e => console.error(e));
+  }, [shovels, pickaxes, items, dailyShovelCount, lastShovelDate, removedDecorationIds]);
+
   const addTask = (title: string, size: TaskSize) => {
+    // ... (existing addTask)
     setTasks(prev => [...prev, { 
       id: Date.now().toString(), 
       title, 
@@ -129,8 +143,77 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const toggleTask = (id: string) => {
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
+    setTasks(prev => prev.map(t => {
+        if (t.id === id) {
+            const isCompleting = !t.completed;
+            
+            // Tool Grant Logic
+            if (isCompleting) {
+                const today = new Date().toDateString();
+                let newDailyCount = dailyShovelCount;
+                
+                // Reset daily count if date changed
+                if (lastShovelDate !== today) {
+                    newDailyCount = 0;
+                    setLastShovelDate(today);
+                    setDailyShovelCount(0);
+                }
+
+                // Grant Shovel (Daily limit 3)
+                if (newDailyCount < 3) {
+                    setShovels(s => s + 1);
+                    setDailyShovelCount(newDailyCount + 1);
+                    
+                    // Grant Pickaxe (Rare: 20% chance or if task size is 'L')
+                    const isLucky = Math.random() < 0.2;
+                    const isLarge = t.size === 'L';
+                    
+                    if (isLarge || isLucky) {
+                        setPickaxes(p => p + 1);
+                        Alert.alert('報酬獲得！', 'シャベルとピッケルを手に入れました！');
+                    } else {
+                        Alert.alert('シャベル獲得！', 'タスク完了報酬としてシャベルを手に入れました。');
+                    }
+                }
+            }
+
+            return { ...t, completed: !t.completed };
+        }
+        return t;
+    }));
   };
+
+  const useTool = (tool: 'shovel' | 'pickaxe', decorationId: string, targetType?: string) => {
+      if (tool === 'shovel') {
+          if (shovels > 0) {
+              setShovels(s => s - 1);
+              setRemovedDecorationIds(prev => [...prev, decorationId]);
+              return { success: true, droppedItem: null };
+          }
+      } else if (tool === 'pickaxe') {
+          if (pickaxes > 0) {
+              setPickaxes(p => p - 1);
+              setRemovedDecorationIds(prev => [...prev, decorationId]);
+              
+              // Drop Logic
+              let droppedItem = null;
+              if (targetType === 'crystal') {
+                  const itemsList = ['rusty_watch', 'broken_machine'];
+                  droppedItem = itemsList[Math.floor(Math.random() * itemsList.length)];
+                  
+                  setItems(prev => ({
+                      ...prev,
+                      [droppedItem]: (prev[droppedItem] || 0) + 1
+                  }));
+              }
+              
+              return { success: true, droppedItem };
+          }
+      }
+      return { success: false, droppedItem: null };
+  };
+
+  // ... (existing functions: deleteTask, deleteCompletedTasks, etc.)
 
   const deleteTask = (id: string) => {
     setTasks(prev => prev.filter(t => t.id !== id));
@@ -206,6 +289,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
     });
   };
+
+  // ... (location functions)
 
   const registerLocation = async (type: 'home' | 'work') => {
       let { status } = await Location.requestForegroundPermissionsAsync();
@@ -303,7 +388,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       registerLocation,
       isLowEnergyMode, setLowEnergyMode,
       deleteCompletedTasks,
-      clearAllTasks
+      clearAllTasks,
+      shovels, pickaxes, items, useTool, removedDecorationIds // Add new values
     }}>
       {children}
     </AppContext.Provider>

@@ -3,7 +3,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { SymbolViewProps, SymbolWeight } from 'expo-symbols';
 import { ComponentProps } from 'react';
-import { OpaqueColorValue, Platform, Text, type StyleProp, type TextStyle } from 'react-native';
+import { OpaqueColorValue, type StyleProp, type TextStyle } from 'react-native';
 
 type IconMapping = Record<SymbolViewProps['name'], ComponentProps<typeof MaterialIcons>['name']>;
 type IconSymbolName = keyof typeof MAPPING;
@@ -20,7 +20,8 @@ const MAPPING = {
   'chevron.right': 'chevron-right',
   'list.bullet': 'format-list-bulleted',
   'gear': 'settings',
-  'flower': 'local-florist',
+  'leaf': 'local-florist',
+  'globe': 'public', // Add globe mapping
   'sparkles': 'auto-awesome',
 } as IconMapping;
 
@@ -43,22 +44,7 @@ export function IconSymbol({
 }) {
   const materialIconName = MAPPING[name];
 
-  if (Platform.OS === 'web') {
-    return (
-      <Text 
-        style={[
-          { 
-            fontFamily: 'Material Icons', 
-            fontSize: size, 
-            color: color as string 
-          }, 
-          style
-        ]}
-      >
-        {materialIconName}
-      </Text>
-    );
-  }
-
+  // WebでもMaterialIconsコンポーネントを直接使用する
+  // これにより、ロードされたフォントが正しく使用される
   return <MaterialIcons color={color} size={size} name={materialIconName} style={style} />;
 }

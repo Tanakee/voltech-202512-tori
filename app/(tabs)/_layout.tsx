@@ -28,10 +28,10 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="garden"
+        name="planet"
         options={{
-          title: 'Garden',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="flower" color={color} />,
+          title: 'Planet',
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="globe" color={color} />,
         }}
       />
       <Tabs.Screen
