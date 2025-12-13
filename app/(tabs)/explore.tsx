@@ -1,112 +1,144 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { Colors } from '@/constants/theme';
+import { useApp } from '@/context/AppContext';
+import * as Location from 'expo-location';
+import { MapPin } from 'lucide-react-native';
+import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-import { Collapsible } from '@/components/ui/collapsible';
-import { ExternalLink } from '@/components/external-link';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Fonts } from '@/constants/theme';
+export default function SettingsScreen() {
+  const { mode, setWorkLocation, setHomeLocation, workLocation, homeLocation } = useApp();
+  const theme = mode === 'work' ? Colors.work : Colors.private;
 
-export default function TabTwoScreen() {
+  const handleSetWork = async () => {
+    try {
+      let location = await Location.getCurrentPositionAsync({});
+      setWorkLocation(location);
+      Alert.alert('成功', '現在地を職場として設定しました！');
+    } catch (e) {
+      Alert.alert('エラー', '位置情報を取得できませんでした。');
+    }
+  };
+
+  const handleSetHome = async () => {
+    try {
+      let location = await Location.getCurrentPositionAsync({});
+      setHomeLocation(location);
+      Alert.alert('成功', '現在地を自宅として設定しました！');
+    } catch (e) {
+      Alert.alert('エラー', '位置情報を取得できませんでした。');
+    }
+  };
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
-      headerImage={
-        <IconSymbol
-          size={310}
-          color="#808080"
-          name="chevron.left.forwardslash.chevron.right"
-          style={styles.headerImage}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText
-          type="title"
-          style={{
-            fontFamily: Fonts.rounded,
-          }}>
-          Explore
-        </ThemedText>
-      </ThemedView>
-      <ThemedText>This app includes example code to help you get started.</ThemedText>
-      <Collapsible title="File-based routing">
-        <ThemedText>
-          This app has two screens:{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/explore.tsx</ThemedText>
-        </ThemedText>
-        <ThemedText>
-          The layout file in <ThemedText type="defaultSemiBold">app/(tabs)/_layout.tsx</ThemedText>{' '}
-          sets up the tab navigator.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/router/introduction">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Android, iOS, and web support">
-        <ThemedText>
-          You can open this project on Android, iOS, and the web. To open the web version, press{' '}
-          <ThemedText type="defaultSemiBold">w</ThemedText> in the terminal running this project.
-        </ThemedText>
-      </Collapsible>
-      <Collapsible title="Images">
-        <ThemedText>
-          For static images, you can use the <ThemedText type="defaultSemiBold">@2x</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">@3x</ThemedText> suffixes to provide files for
-          different screen densities
-        </ThemedText>
-        <Image
-          source={require('@/assets/images/react-logo.png')}
-          style={{ width: 100, height: 100, alignSelf: 'center' }}
-        />
-        <ExternalLink href="https://reactnative.dev/docs/images">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Light and dark mode components">
-        <ThemedText>
-          This template has light and dark mode support. The{' '}
-          <ThemedText type="defaultSemiBold">useColorScheme()</ThemedText> hook lets you inspect
-          what the user&apos;s current color scheme is, and so you can adjust UI colors accordingly.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/develop/user-interface/color-themes/">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Animations">
-        <ThemedText>
-          This template includes an example of an animated component. The{' '}
-          <ThemedText type="defaultSemiBold">components/HelloWave.tsx</ThemedText> component uses
-          the powerful{' '}
-          <ThemedText type="defaultSemiBold" style={{ fontFamily: Fonts.mono }}>
-            react-native-reanimated
-          </ThemedText>{' '}
-          library to create a waving hand animation.
-        </ThemedText>
-        {Platform.select({
-          ios: (
-            <ThemedText>
-              The <ThemedText type="defaultSemiBold">components/ParallaxScrollView.tsx</ThemedText>{' '}
-              component provides a parallax effect for the header image.
-            </ThemedText>
-          ),
-        })}
-      </Collapsible>
-    </ParallaxScrollView>
+    <ScrollView style={[styles.container, { backgroundColor: theme.background }]}>
+      <View style={styles.header}>
+        <Text style={[styles.title, { color: theme.text }]}>設定</Text>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>位置情報設定</Text>
+        <Text style={styles.description}>
+          現在の位置を「職場」または「自宅」として登録すると、自動でモードが切り替わります。
+        </Text>
+
+        <View style={styles.card}>
+          <View style={styles.row}>
+            <MapPin color={Colors.work.primary} size={24} />
+            <View style={styles.info}>
+              <Text style={styles.label}>職場の場所</Text>
+              <Text style={styles.value}>
+                {workLocation ? `${workLocation.coords.latitude.toFixed(4)}, ${workLocation.coords.longitude.toFixed(4)}` : '未設定'}
+              </Text>
+            </View>
+          </View>
+          <TouchableOpacity style={[styles.button, { backgroundColor: Colors.work.primary }]} onPress={handleSetWork}>
+            <Text style={styles.buttonText}>現在地を職場に設定</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.card}>
+          <View style={styles.row}>
+            <MapPin color={Colors.private.primary} size={24} />
+            <View style={styles.info}>
+              <Text style={styles.label}>自宅の場所</Text>
+              <Text style={styles.value}>
+                {homeLocation ? `${homeLocation.coords.latitude.toFixed(4)}, ${homeLocation.coords.longitude.toFixed(4)}` : '未設定'}
+              </Text>
+            </View>
+          </View>
+          <TouchableOpacity style={[styles.button, { backgroundColor: Colors.private.primary }]} onPress={handleSetHome}>
+            <Text style={styles.buttonText}>現在地を自宅に設定</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  headerImage: {
-    color: '#808080',
-    bottom: -90,
-    left: -35,
-    position: 'absolute',
+  container: {
+    flex: 1,
+    padding: 20,
   },
-  titleContainer: {
+  header: {
+    marginTop: 40,
+    marginBottom: 20,
+  },
+  title: {
+    fontSize: 32,
+    fontWeight: 'bold',
+  },
+  section: {
+    marginBottom: 30,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    marginBottom: 10,
+    color: '#333',
+  },
+  description: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  card: {
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 15,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  row: {
     flexDirection: 'row',
-    gap: 8,
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  info: {
+    marginLeft: 15,
+  },
+  label: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  value: {
+    fontSize: 14,
+    color: '#999',
+    marginTop: 2,
+  },
+  button: {
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  buttonText: {
+    color: '#FFF',
+    fontWeight: 'bold',
+    fontSize: 16,
   },
 });
