@@ -30,6 +30,7 @@ export default function TaskItem({ task, onToggle, onDelete, onToggleTimer, mode
   const [modalNewSubTaskTitle, setModalNewSubTaskTitle] = useState('');
 
   const swipeableRef = useRef<Swipeable>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     setDisplayTime(task.elapsedTime);
@@ -220,7 +221,12 @@ export default function TaskItem({ task, onToggle, onDelete, onToggleTimer, mode
                     </TouchableOpacity>
                 </View>
 
-                <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
+                <ScrollView 
+                    ref={scrollViewRef}
+                    style={styles.modalBody} 
+                    keyboardShouldPersistTaps="handled"
+                    onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
+                >
                     <Text style={styles.inputLabel}>タスク名</Text>
                     <TextInput
                         style={styles.modalInput}
@@ -260,18 +266,18 @@ export default function TaskItem({ task, onToggle, onDelete, onToggleTimer, mode
                                 </TouchableOpacity>
                             </View>
                         ))}
-                        
+
                         {isModalSubTaskInputVisible ? (
                             <View style={styles.subTaskInputContainer}>
-                    <TextInput
-                        style={styles.modalInput}
-                        placeholder="サブタスクを入力..."
-                        value={modalNewSubTaskTitle}
-                        onChangeText={setModalNewSubTaskTitle}
-                        onSubmitEditing={handleAddSubTaskInModal}
-                        autoFocus
-                        blurOnSubmit={false}
-                    />
+                                <TextInput
+                                    style={styles.modalInput}
+                                    placeholder="サブタスクを入力..."
+                                    value={modalNewSubTaskTitle}
+                                    onChangeText={setModalNewSubTaskTitle}
+                                    onSubmitEditing={handleAddSubTaskInModal}
+                                    autoFocus
+                                    blurOnSubmit={false}
+                                />
                                 <TouchableOpacity onPress={handleAddSubTaskInModal} style={styles.subTaskAddConfirm}>
                                     <Check color={theme.primary} size={18} />
                                 </TouchableOpacity>
