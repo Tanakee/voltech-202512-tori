@@ -82,7 +82,9 @@ export default function TaskItem({ task, onToggle, onDelete, onToggleTimer, mode
               useNativeDriver: true,
           })
       ]).start(() => {
-          LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+          if (Platform.OS !== 'web') {
+            LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+          }
           onToggle(task.id);
       });
   };
