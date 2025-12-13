@@ -254,12 +254,12 @@ function AutoRotator({ groupRef, isDragging, velocity }: {
     if (groupRef.current) {
       if (!isDragging.current) {
         if (Math.abs(velocity.current.x) > 0.0001 || Math.abs(velocity.current.y) > 0.0001) {
-          groupRef.current.rotation.y += velocity.current.x;
-          groupRef.current.rotation.x += velocity.current.y;
+          groupRef.current.rotateOnWorldAxis(new THREE.Vector3(0, 1, 0), velocity.current.x);
+          groupRef.current.rotateOnWorldAxis(new THREE.Vector3(1, 0, 0), velocity.current.y);
           velocity.current.x *= 0.95;
           velocity.current.y *= 0.95;
         } else {
-          groupRef.current.rotation.y += 0.002;
+          groupRef.current.rotateOnWorldAxis(new THREE.Vector3(0, 1, 0), 0.002);
         }
       }
     }
@@ -293,12 +293,42 @@ function SelectionMarker({ position }: { position: [number, number, number] }) {
     );
 }
 
+function StarField() {
+  const stars = useMemo(() => {
+    const positions = [];
+    for(let i=0; i<800; i++) {
+      const r = 10 + Math.random() * 20;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      const x = r * Math.sin(phi) * Math.cos(theta);
+      const y = r * Math.sin(phi) * Math.sin(theta);
+      const z = r * Math.cos(phi);
+      positions.push(x, y, z);
+    }
+    return new Float32Array(positions);
+  }, []);
+
+  return (
+    <points>
+      <bufferGeometry>
+        <bufferAttribute
+          attach="attributes-position"
+          count={stars.length / 3}
+          array={stars}
+          itemSize={3}
+        />
+      </bufferGeometry>
+      <pointsMaterial size={0.15} color="#FFF" sizeAttenuation transparent opacity={0.8} />
+    </points>
+  );
+}
+
 export default function PlanetGarden() {
   const { tasks, shovels, pickaxes, items, useTool, removedDecorationIds } = useApp();
   const groupRef = useRef<THREE.Group>(null);
-  const rotationRef = useRef({ x: 0, y: 0 });
   const isDragging = useRef(false);
   const velocity = useRef({ x: 0, y: 0 });
+  const lastGesture = useRef({ dx: 0, dy: 0 });
   
   const [selectedDecoration, setSelectedDecoration] = useState<{ id: string, type: string, position: [number, number, number] } | null>(null);
   const [showInventory, setShowInventory] = useState(false);
@@ -396,19 +426,17 @@ export default function PlanetGarden() {
     onPanResponderGrant: () => {
       isDragging.current = true;
       velocity.current = { x: 0, y: 0 };
-      if (groupRef.current) {
-        rotationRef.current = {
-          x: groupRef.current.rotation.x,
-          y: groupRef.current.rotation.y
-        };
-      }
-      // Deselect on drag start (optional, but good UX)
-      // setSelectedDecoration(null); 
+      lastGesture.current = { dx: 0, dy: 0 };
     },
     onPanResponderMove: (_, gestureState) => {
       if (groupRef.current) {
-        groupRef.current.rotation.y = rotationRef.current.y + gestureState.dx * 0.005;
-        groupRef.current.rotation.x = rotationRef.current.x + gestureState.dy * 0.005;
+        const deltaX = gestureState.dx - lastGesture.current.dx;
+        const deltaY = gestureState.dy - lastGesture.current.dy;
+        
+        groupRef.current.rotateOnWorldAxis(new THREE.Vector3(0, 1, 0), deltaX * 0.005);
+        groupRef.current.rotateOnWorldAxis(new THREE.Vector3(1, 0, 0), deltaY * 0.005);
+
+        lastGesture.current = { dx: gestureState.dx, dy: gestureState.dy };
       }
     },
     onPanResponderRelease: (_, gestureState) => {
@@ -417,9 +445,6 @@ export default function PlanetGarden() {
         x: gestureState.vx * 0.015, 
         y: gestureState.vy * 0.015 
       };
-      // If tap (no movement), we might want to deselect if clicked on background
-      // But Canvas clicks are hard to distinguish from background clicks without Raycaster.
-      // For now, we rely on object clicks.
     },
     onPanResponderTerminate: () => {
       isDragging.current = false;
@@ -442,9 +467,12 @@ export default function PlanetGarden() {
         </View>
       </View>
       <Canvas camera={{ position: [0, 0, 6], fov: 50 }} dpr={[1, 2]}>
+        <color attach="background" args={['#000000']} />
         <ambientLight intensity={0.4} />
         <directionalLight position={[10, 10, 5]} intensity={0.8} />
         <pointLight position={[-10, -10, -5]} intensity={0.3} color="#FFF" />
+        
+        <StarField />
         
         <group ref={groupRef}>
           <mesh>
@@ -533,7 +561,7 @@ export default function PlanetGarden() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1E293B',
+    backgroundColor: '#000000',
   },
   header: {
       position: 'absolute',

@@ -12,7 +12,7 @@ export default function GardenScreen() {
   const theme = mode === 'work' ? Colors.work : Colors.private;
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: '#000000' }]}>
       <Suspense fallback={
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.primary} />
