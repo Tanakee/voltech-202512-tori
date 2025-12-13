@@ -112,20 +112,22 @@ export default function HomeScreen() {
 
           <View style={styles.inputWrapper}>
             {/* Size Selector */}
-            <View style={styles.sizeSelector}>
-                {(['S', 'M', 'L'] as TaskSize[]).map((size) => (
-                    <TouchableOpacity 
-                        key={size} 
-                        style={[
-                            styles.sizeOption, 
-                            selectedSize === size && { backgroundColor: theme.primary, borderColor: theme.primary }
-                        ]}
-                        onPress={() => setSelectedSize(size)}
-                    >
-                        <Text style={[styles.sizeOptionText, selectedSize === size && { color: '#FFF' }]}>{size}</Text>
-                    </TouchableOpacity>
-                ))}
-            </View>
+            {isKeyboardVisible && (
+              <View style={styles.sizeSelector}>
+                  {(['S', 'M', 'L'] as TaskSize[]).map((size) => (
+                      <TouchableOpacity 
+                          key={size} 
+                          style={[
+                              styles.sizeOption, 
+                              selectedSize === size && { backgroundColor: theme.primary, borderColor: theme.primary }
+                          ]}
+                          onPress={() => setSelectedSize(size)}
+                      >
+                          <Text style={[styles.sizeOptionText, selectedSize === size && { color: '#FFF' }]}>{size}</Text>
+                      </TouchableOpacity>
+                  ))}
+              </View>
+            )}
 
             <View style={styles.inputContainer}>
                 <TextInput
