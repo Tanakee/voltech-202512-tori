@@ -48,7 +48,7 @@ export default function BalanceGauge() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.headerTitle}>Life Balance (Time Based)</Text>
+      <Text style={styles.headerTitle}>Life Balance</Text>
       
       <View style={styles.row}>
         <Text style={[styles.label, { color: Colors.work.text }]}>Work</Text>

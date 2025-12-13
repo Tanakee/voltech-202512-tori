@@ -1,8 +1,10 @@
 import { Colors } from '@/constants/theme';
 import { Task } from '@/context/AppContext';
+import * as Haptics from 'expo-haptics';
 import { Check, Pause, Play, Trash2 } from 'lucide-react-native';
-import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Animated as RNAnimated, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import Swipeable from 'react-native-gesture-handler/Swipeable';
 
 interface TaskItemProps {
   task: Task;
@@ -16,6 +18,7 @@ interface TaskItemProps {
 export default function TaskItem({ task, onToggle, onDelete, onToggleTimer, mode, isAnyTaskRunning }: TaskItemProps) {
   const theme = mode === 'work' ? Colors.work : Colors.private;
   const [displayTime, setDisplayTime] = useState(task.elapsedTime);
+  const swipeableRef = useRef<Swipeable>(null);
 
   useEffect(() => {
     setDisplayTime(task.elapsedTime);
@@ -46,59 +49,114 @@ export default function TaskItem({ task, onToggle, onDelete, onToggleTimer, mode
 
   const isFocusMode = isAnyTaskRunning && !task.isRunning;
 
-  return (
-    <View style={[
-      styles.container, 
-      { borderLeftColor: theme.primary },
-      isFocusMode && styles.dimmed
-    ]}>
-      <TouchableOpacity 
-        style={[styles.checkCircle, task.completed && { backgroundColor: theme.primary, borderColor: theme.primary }]} 
-        onPress={() => onToggle(task.id)}
-      >
-        {task.completed && <Check color="#FFF" size={16} />}
-      </TouchableOpacity>
-      
-      <View style={styles.contentContainer}>
-        <Text style={[styles.title, task.completed && styles.completedText]}>
-          {task.title}
-        </Text>
-        {task.elapsedTime > 0 || task.isRunning ? (
-           <Text style={[styles.timerText, { color: theme.text }]}>
-             {task.isRunning ? 'Running: ' : 'Total: '}{formatTime(displayTime)}
-           </Text>
-        ) : null}
+  const renderRightActions = (progress: RNAnimated.AnimatedInterpolation<number>, dragX: RNAnimated.AnimatedInterpolation<number>) => {
+    const trans = dragX.interpolate({
+      inputRange: [-100, 0],
+      outputRange: [0, 100],
+      extrapolate: 'clamp',
+    });
+
+    return (
+      <View style={styles.rightActionContainer}>
+        <RNAnimated.View style={[styles.rightAction, { transform: [{ translateX: trans }] }]}>
+           <TouchableOpacity 
+             style={styles.deleteActionBtn} 
+             onPress={() => {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                onDelete(task.id);
+             }}
+           >
+             <Trash2 color="#FFF" size={24} />
+             <Text style={styles.actionText}>削除</Text>
+           </TouchableOpacity>
+        </RNAnimated.View>
       </View>
+    );
+  };
 
-      <TouchableOpacity onPress={() => onToggleTimer(task.id)} style={styles.actionBtn}>
-        {task.isRunning ? (
-          <Pause color={theme.primary} size={20} fill={theme.primary} />
-        ) : (
-          <Play color={theme.primary} size={20} />
-        )}
-      </TouchableOpacity>
+  const onSwipeableOpen = () => {
+      // Optional: Auto-complete on swipe could be implemented here instead of delete
+      // For now, let's keep delete as the swipe action based on "Swipe to delete/explode"
+  };
 
-      <TouchableOpacity onPress={() => onDelete(task.id)} style={styles.actionBtn}>
-        <Trash2 color="#CCC" size={20} />
-      </TouchableOpacity>
-    </View>
+  const getSizeColor = (size: string) => {
+      switch(size) {
+          case 'S': return '#4ADE80'; // Green
+          case 'M': return '#FACC15'; // Yellow
+          case 'L': return '#F87171'; // Red
+          default: return '#CCC';
+      }
+  };
+
+  return (
+    <Swipeable
+      ref={swipeableRef}
+      renderRightActions={renderRightActions}
+      onSwipeableOpen={onSwipeableOpen}
+      containerStyle={styles.swipeableContainer}
+    >
+        <View style={[
+        styles.container, 
+        { borderLeftColor: theme.primary },
+        isFocusMode && styles.dimmed
+        ]}>
+        <TouchableOpacity 
+            style={[styles.checkCircle, task.completed && { backgroundColor: theme.primary, borderColor: theme.primary }]} 
+            onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                onToggle(task.id);
+            }}
+        >
+            {task.completed && <Check color="#FFF" size={16} />}
+        </TouchableOpacity>
+        
+        <View style={styles.contentContainer}>
+            <View style={styles.titleRow}>
+                <View style={[styles.sizeBadge, { backgroundColor: getSizeColor(task.size) }]}>
+                    <Text style={styles.sizeText}>{task.size}</Text>
+                </View>
+                <Text style={[styles.title, task.completed && styles.completedText]} numberOfLines={1}>
+                    {task.title}
+                </Text>
+            </View>
+            {task.elapsedTime > 0 || task.isRunning ? (
+            <Text style={[styles.timerText, { color: theme.text }]}>
+                {task.isRunning ? 'Running: ' : 'Total: '}{formatTime(displayTime)}
+            </Text>
+            ) : null}
+        </View>
+
+        <TouchableOpacity onPress={() => onToggleTimer(task.id)} style={styles.actionBtn}>
+            {task.isRunning ? (
+            <Pause color={theme.primary} size={20} fill={theme.primary} />
+            ) : (
+            <Play color={theme.primary} size={20} />
+            )}
+        </TouchableOpacity>
+        </View>
+    </Swipeable>
   );
 }
 
 const styles = StyleSheet.create({
+  swipeableContainer: {
+      marginBottom: 12,
+      borderRadius: 12,
+      overflow: 'hidden',
+      backgroundColor: 'transparent', // Important for shadow
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.05,
+      shadowRadius: 4,
+      elevation: 2,
+  },
   container: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFF',
     padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
     borderLeftWidth: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    height: 80, // Fixed height for smoother swipe
   },
   dimmed: {
     opacity: 0.4,
@@ -116,10 +174,27 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     flex: 1,
+    justifyContent: 'center',
+  },
+  titleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+  },
+  sizeBadge: {
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 4,
+      marginRight: 8,
+  },
+  sizeText: {
+      fontSize: 10,
+      fontWeight: 'bold',
+      color: '#FFF',
   },
   title: {
     fontSize: 16,
     color: '#333',
+    flex: 1,
   },
   timerText: {
     fontSize: 12,
@@ -133,5 +208,29 @@ const styles = StyleSheet.create({
   actionBtn: {
     padding: 8,
     marginLeft: 4,
+  },
+  rightActionContainer: {
+      width: 100,
+      backgroundColor: '#EF4444',
+      justifyContent: 'center',
+      alignItems: 'flex-end',
+  },
+  rightAction: {
+      width: 100,
+      height: '100%',
+      justifyContent: 'center',
+      alignItems: 'center',
+  },
+  deleteActionBtn: {
+      justifyContent: 'center',
+      alignItems: 'center',
+      width: '100%',
+      height: '100%',
+  },
+  actionText: {
+      color: '#FFF',
+      fontSize: 12,
+      fontWeight: 'bold',
+      marginTop: 4,
   }
 });

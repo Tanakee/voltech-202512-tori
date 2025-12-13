@@ -1,15 +1,17 @@
 import BalanceGauge from '@/components/BalanceGauge';
+import Mascot from '@/components/Mascot';
 import ModeSwitcher from '@/components/ModeSwitcher';
 import TaskItem from '@/components/TaskItem';
 import { Colors } from '@/constants/theme';
-import { useApp } from '@/context/AppContext';
-import { ChevronDown, Plus } from 'lucide-react-native';
+import { TaskSize, useApp } from '@/context/AppContext';
+import { Battery, BatteryCharging, ChevronDown, Plus } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { FlatList, Keyboard, KeyboardAvoidingView, Platform, SafeAreaView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 export default function HomeScreen() {
-  const { mode, tasks, addTask, toggleTask, deleteTask, toggleTaskTimer } = useApp();
+  const { mode, tasks, addTask, toggleTask, deleteTask, toggleTaskTimer, isLowEnergyMode, setLowEnergyMode } = useApp();
   const [newTask, setNewTask] = useState('');
+  const [selectedSize, setSelectedSize] = useState<TaskSize>('M');
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
 
   useEffect(() => {
@@ -29,13 +31,21 @@ export default function HomeScreen() {
   }, []);
 
   const theme = mode === 'work' ? Colors.work : Colors.private;
-  const filteredTasks = tasks.filter(t => t.type === mode);
+  
+  // Filter logic: Mode filter AND Low Energy filter
+  const filteredTasks = tasks.filter(t => {
+      const modeMatch = t.type === mode;
+      const energyMatch = isLowEnergyMode ? t.size === 'S' : true;
+      return modeMatch && energyMatch;
+  });
+  
   const isAnyTaskRunning = tasks.some(t => t.isRunning);
 
   const handleAddTask = () => {
     if (newTask.trim()) {
-      addTask(newTask.trim());
+      addTask(newTask.trim(), selectedSize);
       setNewTask('');
+      setSelectedSize('M'); // Reset to default
     }
   };
 
@@ -52,6 +62,22 @@ export default function HomeScreen() {
             <>
               <ModeSwitcher />
               <BalanceGauge />
+              
+              <View style={styles.filterContainer}>
+                  <TouchableOpacity 
+                    style={[styles.energyBtn, isLowEnergyMode && styles.energyBtnActive]} 
+                    onPress={() => setLowEnergyMode(!isLowEnergyMode)}
+                  >
+                      {isLowEnergyMode ? (
+                          <Battery color="#FFF" size={20} />
+                      ) : (
+                          <BatteryCharging color={theme.primary} size={20} />
+                      )}
+                      <Text style={[styles.energyBtnText, isLowEnergyMode && { color: '#FFF' }]}>
+                          {isLowEnergyMode ? 'やる気でないモード中...' : 'やる気でない...'}
+                      </Text>
+                  </TouchableOpacity>
+              </View>
             </>
           ) : (
             <View style={styles.keyboardHeader}>
@@ -81,21 +107,44 @@ export default function HomeScreen() {
             />
           </View>
 
-          <View style={styles.inputContainer}>
-            <TextInput
-              style={styles.input}
-              placeholder="新しいタスクを追加..."
-              placeholderTextColor="#999"
-              value={newTask}
-              onChangeText={setNewTask}
-              onSubmitEditing={handleAddTask}
-            />
-            <TouchableOpacity 
-              style={[styles.addBtn, { backgroundColor: theme.primary }]} 
-              onPress={handleAddTask}
-            >
-              <Plus color="#FFF" size={24} />
-            </TouchableOpacity>
+          {/* Mascot Display - Only show when keyboard is hidden to avoid clutter */}
+          {!isKeyboardVisible && <Mascot />}
+
+          <View style={styles.inputWrapper}>
+            {/* Size Selector */}
+            {isKeyboardVisible && (
+              <View style={styles.sizeSelector}>
+                  {(['S', 'M', 'L'] as TaskSize[]).map((size) => (
+                      <TouchableOpacity 
+                          key={size} 
+                          style={[
+                              styles.sizeOption, 
+                              selectedSize === size && { backgroundColor: theme.primary, borderColor: theme.primary }
+                          ]}
+                          onPress={() => setSelectedSize(size)}
+                      >
+                          <Text style={[styles.sizeOptionText, selectedSize === size && { color: '#FFF' }]}>{size}</Text>
+                      </TouchableOpacity>
+                  ))}
+              </View>
+            )}
+
+            <View style={styles.inputContainer}>
+                <TextInput
+                style={styles.input}
+                placeholder="新しいタスクを追加..."
+                placeholderTextColor="#999"
+                value={newTask}
+                onChangeText={setNewTask}
+                onSubmitEditing={handleAddTask}
+                />
+                <TouchableOpacity 
+                style={[styles.addBtn, { backgroundColor: theme.primary }]} 
+                onPress={handleAddTask}
+                >
+                <Plus color="#FFF" size={24} />
+                </TouchableOpacity>
+            </View>
           </View>
         </View>
       </KeyboardAvoidingView>
@@ -117,11 +166,42 @@ const styles = StyleSheet.create({
   listContent: {
     paddingBottom: 100,
   },
-  inputContainer: {
+  inputWrapper: {
     position: 'absolute',
-    bottom: 20,
-    left: 20,
-    right: 20,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'transparent',
+    paddingBottom: 20,
+    paddingHorizontal: 20,
+  },
+  sizeSelector: {
+      flexDirection: 'row',
+      marginBottom: 10,
+      justifyContent: 'flex-start',
+  },
+  sizeOption: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: '#DDD',
+      backgroundColor: '#FFF',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 10,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 2,
+      elevation: 2,
+  },
+  sizeOptionText: {
+      fontSize: 14,
+      fontWeight: 'bold',
+      color: '#666',
+  },
+  inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFF',
@@ -169,4 +249,29 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+  filterContainer: {
+      paddingHorizontal: 20,
+      marginBottom: 10,
+      alignItems: 'flex-end',
+  },
+  energyBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: '#FFF',
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: '#DDD',
+  },
+  energyBtnActive: {
+      backgroundColor: '#60A5FA', // Light blue or specific color for low energy
+      borderColor: '#60A5FA',
+  },
+  energyBtnText: {
+      marginLeft: 6,
+      fontSize: 12,
+      fontWeight: '600',
+      color: '#666',
+  }
 });
