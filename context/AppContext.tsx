@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { Alert } from 'react-native';
 
 export type Mode = 'work' | 'private';
@@ -49,6 +49,7 @@ interface AppContextType {
   items: Record<string, number>;
   useTool: (tool: 'shovel' | 'pickaxe', decorationId: string, targetType?: string) => { success: boolean; droppedItem: string | null };
   removedDecorationIds: string[];
+  restoreDecoration: (id: string) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -74,6 +75,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [dailyShovelCount, setDailyShovelCount] = useState(0);
   const [lastShovelDate, setLastShovelDate] = useState('');
   const [removedDecorationIds, setRemovedDecorationIds] = useState<string[]>([]);
+
+  const restoreDecoration = useCallback((id: string) => {
+    setRemovedDecorationIds(prev => prev.filter(dId => dId !== id));
+  }, []);
 
   // Load tasks, locations, and garden data
   useEffect(() => {
@@ -164,8 +169,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                     setShovels(s => s + 1);
                     setDailyShovelCount(newDailyCount + 1);
                     
-                    // Grant Pickaxe (Rare: 20% chance or if task size is 'L')
-                    const isLucky = Math.random() < 0.2;
+                    // Grant Pickaxe (Rare: 5% chance or if task size is 'L')
+                    const isLucky = Math.random() < 0.05;
                     const isLarge = t.size === 'L';
                     
                     if (isLarge || isLucky) {
@@ -389,7 +394,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       isLowEnergyMode, setLowEnergyMode,
       deleteCompletedTasks,
       clearAllTasks,
-      shovels, pickaxes, items, useTool, removedDecorationIds // Add new values
+      shovels, pickaxes, items, useTool, removedDecorationIds, restoreDecoration // Add new values
     }}>
       {children}
     </AppContext.Provider>

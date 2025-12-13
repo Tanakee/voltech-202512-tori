@@ -1,7 +1,7 @@
 import { useApp } from '@/context/AppContext';
 import { Ionicons } from '@expo/vector-icons';
 import { Canvas, useFrame } from '@react-three/fiber';
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Modal, PanResponder, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import * as THREE from 'three';
 
@@ -20,6 +20,12 @@ const getPositionOnSphere = (r: number, phi: number, theta: number) => {
     position: [x, y, z] as [number, number, number],
     rotation: [euler.x, euler.y, euler.z] as [number, number, number],
   };
+};
+
+const getFibonacciPosition = (index: number, total: number) => {
+  const phi = Math.acos(1 - 2 * (index + 0.5) / total);
+  const theta = Math.PI * (1 + Math.sqrt(5)) * index;
+  return getPositionOnSphere(1.93, phi, theta);
 };
 
 // 木（Private用）
@@ -203,6 +209,11 @@ function PlanetObject({ position, rotation, type, id }: { position: [number, num
 function Rock({ position, rotation, onClick }: { position: [number, number, number], rotation: [number, number, number], onClick: () => void }) {
   return (
     <group position={position} rotation={rotation} scale={[0.5, 0.5, 0.5]} onClick={(e) => { e.stopPropagation(); onClick(); }}>
+      {/* Hitbox */}
+      <mesh visible={false}>
+          <boxGeometry args={[0.5, 0.5, 0.5]} />
+          <meshBasicMaterial transparent opacity={0} />
+      </mesh>
       <mesh position={[0, 0.1, 0]}>
         <dodecahedronGeometry args={[0.15, 0]} />
         <meshStandardMaterial color="#64748B" flatShading />
@@ -215,8 +226,13 @@ function Rock({ position, rotation, onClick }: { position: [number, number, numb
 function Weed({ position, rotation, onClick }: { position: [number, number, number], rotation: [number, number, number], onClick: () => void }) {
   return (
     <group position={position} rotation={rotation} scale={[0.5, 0.5, 0.5]} onClick={(e) => { e.stopPropagation(); onClick(); }}>
+      {/* Hitbox */}
+      <mesh visible={false} position={[0, 0.15, 0]}>
+          <boxGeometry args={[0.4, 0.4, 0.4]} />
+          <meshBasicMaterial transparent opacity={0} />
+      </mesh>
       {[...Array(3)].map((_, i) => (
-         <mesh key={i} position={[0, 0, 0]} rotation={[0, (i * Math.PI * 2) / 3, Math.PI / 6]}>
+         <mesh key={i} position={[0, 0.1, 0]} rotation={[0, (i * Math.PI * 2) / 3, Math.PI / 6]}>
             <planeGeometry args={[0.1, 0.3]} />
             <meshStandardMaterial color="#86EFAC" side={THREE.DoubleSide} />
          </mesh>
@@ -228,6 +244,11 @@ function Weed({ position, rotation, onClick }: { position: [number, number, numb
 function CrystalCluster({ position, rotation, onClick }: { position: [number, number, number], rotation: [number, number, number], onClick?: () => void }) {
   return (
     <group position={position} rotation={rotation} scale={[0.6, 0.6, 0.6]} onClick={(e) => { e.stopPropagation(); onClick?.(); }}>
+      {/* Hitbox */}
+      <mesh visible={false} position={[0, 0.3, 0]}>
+          <cylinderGeometry args={[0.3, 0.3, 0.8, 8]} />
+          <meshBasicMaterial transparent opacity={0} />
+      </mesh>
       <mesh position={[0, 0.3, 0]}>
         <cylinderGeometry args={[0, 0.15, 0.8, 4]} />
         <meshStandardMaterial color="#A78BFA" emissive="#7C3AED" emissiveIntensity={0.5} roughness={0.1} />
@@ -324,7 +345,7 @@ function StarField() {
 }
 
 export default function PlanetGarden() {
-  const { tasks, shovels, pickaxes, items, useTool, removedDecorationIds } = useApp();
+  const { tasks, shovels, pickaxes, items, useTool, removedDecorationIds, restoreDecoration } = useApp();
   const groupRef = useRef<THREE.Group>(null);
   const isDragging = useRef(false);
   const velocity = useRef({ x: 0, y: 0 });
@@ -333,57 +354,98 @@ export default function PlanetGarden() {
   const [selectedDecoration, setSelectedDecoration] = useState<{ id: string, type: string, position: [number, number, number] } | null>(null);
   const [showInventory, setShowInventory] = useState(false);
 
+  // デコレーションの自動生成（復活）ロジック
+  // 雑草(70%) > 岩(25%) > クリスタル(5%)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // 削除済みのアイテムを取得
+      const removedItems = decorations.filter(d => removedDecorationIds.includes(d.id));
+      
+      if (removedItems.length === 0) return;
+
+      // 確率に基づいて復活させるタイプを決定
+      const rand = Math.random();
+      let targetType = 'weed';
+      if (rand > 0.95) {
+          targetType = 'crystal'; // 5%
+      } else if (rand > 0.7) {
+          targetType = 'rock'; // 25%
+      } else {
+          targetType = 'weed'; // 70%
+      }
+
+      // ターゲットタイプの削除済みアイテム候補
+      const candidates = removedItems.filter(d => d.type === targetType);
+
+      if (candidates.length > 0) {
+        // ランダムに1つ選んで復活
+        const toRestore = candidates[Math.floor(Math.random() * candidates.length)];
+        restoreDecoration(toRestore.id);
+      }
+    }, 28800000); // 8時間ごとに判定
+
+    return () => clearInterval(interval);
+  }, [removedDecorationIds, restoreDecoration]);
+
   const completedTasks = useMemo(() => {
     return tasks
       .filter(t => t.completed)
       .slice(-50);
   }, [tasks]);
 
+  // Slot allocation for non-overlapping placement
+  const { decorationSlots, taskSlots } = useMemo(() => {
+    const total = 150;
+    const decCount = 40; 
+    const allSlots = Array.from({ length: total }, (_, i) => i);
+    
+    // Seeded shuffle
+    let seed = 999;
+    const random = () => {
+        const x = Math.sin(seed++) * 10000;
+        return x - Math.floor(x);
+    };
+
+    for (let i = allSlots.length - 1; i > 0; i--) {
+        const j = Math.floor(random() * (i + 1));
+        [allSlots[i], allSlots[j]] = [allSlots[j], allSlots[i]];
+    }
+
+    return {
+        decorationSlots: allSlots.slice(0, decCount),
+        taskSlots: allSlots.slice(decCount)
+    };
+  }, []);
+
+  const decorations = useMemo(() => {
+    return decorationSlots.map((slotIndex) => {
+        const { position, rotation } = getFibonacciPosition(slotIndex, 150);
+        
+        // Determine type based on slotIndex (pseudo-random)
+        const typeRand = (slotIndex * 123.45) % 1; 
+        let type = 'weed';
+        if (typeRand > 0.9) type = 'crystal';
+        else if (typeRand > 0.6) type = 'rock';
+        
+        return {
+            id: `dec-${slotIndex}`,
+            position,
+            rotation,
+            type
+        };
+    });
+  }, [decorationSlots]);
+
   const objects = useMemo(() => {
-    const count = completedTasks.length;
-    return completedTasks.map((task, index) => {
-      const phi = Math.acos(1 - 2 * (index + 0.5) / count);
-      const theta = Math.PI * (1 + Math.sqrt(5)) * (index + 0.5);
+    return completedTasks.map((task, i) => {
+      const slotIndex = taskSlots[i % taskSlots.length];
       return {
         id: task.id,
-        ...getPositionOnSphere(1.93, phi, theta),
+        ...getFibonacciPosition(slotIndex, 150),
         type: task.type
       };
     });
-  }, [completedTasks]);
-
-  // 固定の装飾（クリスタル、岩、雑草）
-  const decorations = useMemo(() => {
-    const items = [];
-    
-    // クリスタル (2箇所)
-    items.push({ id: 'crystal-1', type: 'crystal', ...getPositionOnSphere(1.9, Math.PI / 4, 0) });
-    items.push({ id: 'crystal-2', type: 'crystal', ...getPositionOnSphere(1.9, Math.PI / 1.5, Math.PI) });
-
-    // 岩 (10個) - 固定シードで配置
-    for (let i = 0; i < 10; i++) {
-        const phi = Math.acos(1 - 2 * (i + 0.5) / 10); 
-        const theta = Math.PI * (1 + Math.sqrt(5)) * (i + 0.5) + 1; 
-        items.push({ 
-            id: `rock-${i}`,
-            type: 'rock', 
-            ...getPositionOnSphere(1.95, phi, theta) 
-        });
-    }
-
-    // 雑草 (10個)
-    for (let i = 0; i < 10; i++) {
-        const phi = Math.acos(1 - 2 * (i + 0.5) / 10);
-        const theta = Math.PI * (1 + Math.sqrt(5)) * (i + 0.5) + 2;
-        items.push({
-            id: `weed-${i}`,
-            type: 'weed',
-            ...getPositionOnSphere(1.95, phi, theta)
-        });
-    }
-
-    return items;
-  }, []);
+  }, [completedTasks, taskSlots]);
 
   // 削除されたものを除外
   const visibleDecorations = useMemo(() => {

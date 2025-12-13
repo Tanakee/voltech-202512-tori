@@ -1,12 +1,14 @@
+import LocationMapModal from '@/components/LocationMapModal';
 import { Colors } from '@/constants/theme';
 import { useApp } from '@/context/AppContext';
-import { Briefcase, Home, MapPin } from 'lucide-react-native';
-import React from 'react';
+import { Briefcase, Home, Map as MapIcon, MapPin } from 'lucide-react-native';
+import React, { useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function SettingsScreen() {
   const { mode, registerLocation, homeLocation, workLocation } = useApp();
+  const [showMap, setShowMap] = useState(false);
   const theme = mode === 'work' ? Colors.work : Colors.private;
 
   return (
@@ -53,11 +55,22 @@ export default function SettingsScreen() {
                     <Text style={styles.buttonText}>現在地を職場として登録</Text>
                 </TouchableOpacity>
             </View>
+
+            <TouchableOpacity 
+                style={[styles.mapCheckButton, { borderColor: theme.primary }]}
+                onPress={() => setShowMap(true)}
+            >
+                <MapIcon color={theme.primary} size={20} />
+                <Text style={[styles.mapCheckButtonText, { color: theme.primary }]}>登録地点をマップで確認</Text>
+            </TouchableOpacity>
         </View>
       </ScrollView>
+
+      <LocationMapModal visible={showMap} onClose={() => setShowMap(false)} />
     </SafeAreaView>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: {
@@ -132,4 +145,19 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     fontSize: 14,
   },
+  mapCheckButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 10,
+    backgroundColor: '#FFF',
+  },
+  mapCheckButtonText: {
+    fontWeight: '600',
+    marginLeft: 8,
+    fontSize: 14,
+  }
 });
