@@ -37,6 +37,9 @@ export default function HomeScreen() {
       const modeMatch = t.type === mode;
       const energyMatch = isLowEnergyMode ? t.size === 'S' : true;
       return modeMatch && energyMatch;
+  }).sort((a, b) => {
+      if (a.completed === b.completed) return 0;
+      return a.completed ? 1 : -1;
   });
   
   const isAnyTaskRunning = tasks.some(t => t.isRunning);
