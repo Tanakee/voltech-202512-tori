@@ -1,176 +1,135 @@
 import { Colors } from '@/constants/theme';
 import { useApp } from '@/context/AppContext';
-import * as Location from 'expo-location';
-import { MapPin } from 'lucide-react-native';
-import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Briefcase, Home, MapPin } from 'lucide-react-native';
+import React from 'react';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function SettingsScreen() {
-  const { mode, setWorkLocation, setHomeLocation, workLocation, homeLocation, clearAllTasks } = useApp();
+  const { mode, registerLocation, homeLocation, workLocation } = useApp();
   const theme = mode === 'work' ? Colors.work : Colors.private;
 
-  const handleSetWork = async () => {
-    try {
-      let location = await Location.getCurrentPositionAsync({});
-      setWorkLocation(location);
-      Alert.alert('成功', '現在地を職場として設定しました！');
-    } catch (e) {
-      Alert.alert('エラー', '位置情報を取得できませんでした。');
-    }
-  };
-
-  const handleSetHome = async () => {
-    try {
-      let location = await Location.getCurrentPositionAsync({});
-      setHomeLocation(location);
-      Alert.alert('成功', '現在地を自宅として設定しました！');
-    } catch (e) {
-      Alert.alert('エラー', '位置情報を取得できませんでした。');
-    }
-  };
-
   return (
-    <ScrollView style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={styles.header}>
-        <Text style={[styles.title, { color: theme.text }]}>設定</Text>
-      </View>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+      <ScrollView contentContainerStyle={styles.content}>
+        <Text style={[styles.headerTitle, { color: theme.text }]}>設定</Text>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>位置情報設定</Text>
-        <Text style={styles.description}>
-          現在の位置を「職場」または「自宅」として登録すると、自動でモードが切り替わります。
-        </Text>
-
-        <View style={styles.card}>
-          <View style={styles.row}>
-            <MapPin color={Colors.work.primary} size={24} />
-            <View style={styles.info}>
-              <Text style={styles.label}>職場の場所</Text>
-              <Text style={styles.value}>
-                {workLocation ? `${workLocation.coords.latitude.toFixed(4)}, ${workLocation.coords.longitude.toFixed(4)}` : '未設定'}
-              </Text>
-            </View>
-          </View>
-          <TouchableOpacity style={[styles.button, { backgroundColor: Colors.work.primary }]} onPress={handleSetWork}>
-            <Text style={styles.buttonText}>現在地を職場に設定</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.card}>
-          <View style={styles.row}>
-            <MapPin color={Colors.private.primary} size={24} />
-            <View style={styles.info}>
-              <Text style={styles.label}>自宅の場所</Text>
-              <Text style={styles.value}>
-                {homeLocation ? `${homeLocation.coords.latitude.toFixed(4)}, ${homeLocation.coords.longitude.toFixed(4)}` : '未設定'}
-              </Text>
-            </View>
-          </View>
-          <TouchableOpacity style={[styles.button, { backgroundColor: Colors.private.primary }]} onPress={handleSetHome}>
-            <Text style={styles.buttonText}>現在地を自宅に設定</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>データ管理</Text>
-        <View style={styles.card}>
-            <Text style={styles.label}>全タスクの削除</Text>
-            <Text style={[styles.description, { marginTop: 8, marginBottom: 15 }]}>
-                登録されているすべてのタスクを削除します。この操作は取り消せません。
+        <View style={styles.section}>
+            <Text style={styles.sectionTitle}>位置情報の自動切り替え</Text>
+            <Text style={styles.sectionDesc}>
+                自宅や職場の場所を登録すると、近くにいるときにモード切り替えを提案します。
             </Text>
-            <TouchableOpacity 
-                style={[styles.button, { backgroundColor: '#EF4444' }]} 
-                onPress={() => {
-                    Alert.alert(
-                        '全タスク削除',
-                        '本当にすべてのタスクを削除しますか？',
-                        [
-                            { text: 'キャンセル', style: 'cancel' },
-                            { 
-                                text: '削除する', 
-                                style: 'destructive', 
-                                onPress: async () => {
-                                    await clearAllTasks();
-                                    Alert.alert('完了', 'すべてのタスクを削除しました。');
-                                }
-                            }
-                        ]
-                    );
-                }}
-            >
-                <Text style={styles.buttonText}>全データを削除</Text>
-            </TouchableOpacity>
+
+            <View style={styles.card}>
+                <View style={styles.cardHeader}>
+                    <Home color={theme.primary} size={24} />
+                    <Text style={styles.cardTitle}>自宅の場所</Text>
+                </View>
+                <Text style={[styles.statusText, homeLocation ? styles.statusSet : styles.statusUnset]}>
+                    {homeLocation ? '設定済み' : '未設定'}
+                </Text>
+                <TouchableOpacity 
+                    style={[styles.button, { backgroundColor: theme.primary }]}
+                    onPress={() => registerLocation('home')}
+                >
+                    <MapPin color="#FFF" size={18} />
+                    <Text style={styles.buttonText}>現在地を自宅として登録</Text>
+                </TouchableOpacity>
+            </View>
+
+            <View style={styles.card}>
+                <View style={styles.cardHeader}>
+                    <Briefcase color={theme.primary} size={24} />
+                    <Text style={styles.cardTitle}>職場の場所</Text>
+                </View>
+                <Text style={[styles.statusText, workLocation ? styles.statusSet : styles.statusUnset]}>
+                    {workLocation ? '設定済み' : '未設定'}
+                </Text>
+                <TouchableOpacity 
+                    style={[styles.button, { backgroundColor: theme.primary }]}
+                    onPress={() => registerLocation('work')}
+                >
+                    <MapPin color="#FFF" size={18} />
+                    <Text style={styles.buttonText}>現在地を職場として登録</Text>
+                </TouchableOpacity>
+            </View>
         </View>
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  content: {
     padding: 20,
   },
-  header: {
-    marginTop: 40,
-    marginBottom: 20,
-  },
-  title: {
-    fontSize: 32,
+  headerTitle: {
+    fontSize: 28,
     fontWeight: 'bold',
+    marginBottom: 20,
   },
   section: {
     marginBottom: 30,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    marginBottom: 10,
+    fontSize: 18,
+    fontWeight: 'bold',
     color: '#333',
+    marginBottom: 8,
   },
-  description: {
+  sectionDesc: {
     fontSize: 14,
     color: '#666',
-    marginBottom: 20,
+    marginBottom: 16,
     lineHeight: 20,
   },
   card: {
     backgroundColor: '#FFF',
     borderRadius: 16,
     padding: 20,
-    marginBottom: 15,
+    marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 2,
+    elevation: 3,
   },
-  row: {
+  cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 15,
+    marginBottom: 12,
   },
-  info: {
-    marginLeft: 15,
-  },
-  label: {
-    fontSize: 16,
+  cardTitle: {
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
+    marginLeft: 10,
   },
-  value: {
+  statusText: {
     fontSize: 14,
-    color: '#999',
-    marginTop: 2,
+    fontWeight: '600',
+    marginBottom: 16,
+  },
+  statusSet: {
+      color: '#4ADE80', // Green
+  },
+  statusUnset: {
+      color: '#999', // Gray
   },
   button: {
-    paddingVertical: 12,
-    borderRadius: 8,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 12,
   },
   buttonText: {
     color: '#FFF',
     fontWeight: 'bold',
-    fontSize: 16,
+    marginLeft: 8,
+    fontSize: 14,
   },
 });

@@ -3,7 +3,7 @@ import { Task, TaskSize, useApp } from '@/context/AppContext';
 import * as Haptics from 'expo-haptics';
 import { Check, Edit, Pause, Play, Plus, Trash2, X } from 'lucide-react-native';
 import React, { useEffect, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Animated as RNAnimated, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Modal, Platform, Animated as RNAnimated, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
 
 interface TaskItemProps {
@@ -17,7 +17,7 @@ interface TaskItemProps {
 
 export default function TaskItem({ task, onToggle, onDelete, onToggleTimer, mode, isAnyTaskRunning }: TaskItemProps) {
   const { addSubTask, toggleSubTask, deleteSubTask, updateTask } = useApp();
-  const theme = mode === 'work' ? Colors.work : Colors.private;
+  const theme = task.type === 'work' ? Colors.work : Colors.private;
   const [displayTime, setDisplayTime] = useState(task.elapsedTime);
   
   // Edit Modal State
@@ -83,6 +83,28 @@ export default function TaskItem({ task, onToggle, onDelete, onToggleTimer, mode
       setEditModalVisible(false);
   };
 
+  const handleDelete = () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    Alert.alert(
+      "タスクの削除",
+      "本当にこのタスクを削除しますか？",
+      [
+        {
+          text: "キャンセル",
+          style: "cancel"
+        },
+        {
+          text: "削除",
+          style: "destructive",
+          onPress: () => {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            onDelete(task.id);
+          }
+        }
+      ]
+    );
+  };
+
   const isFocusMode = isAnyTaskRunning && !task.isRunning;
 
   const renderRightActions = (progress: RNAnimated.AnimatedInterpolation<number>, dragX: RNAnimated.AnimatedInterpolation<number>) => {
@@ -104,10 +126,7 @@ export default function TaskItem({ task, onToggle, onDelete, onToggleTimer, mode
            </TouchableOpacity>
            <TouchableOpacity 
              style={[styles.actionBtnBase, styles.deleteActionBtn]} 
-             onPress={() => {
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                onDelete(task.id);
-             }}
+             onPress={handleDelete}
            >
              <Trash2 color="#FFF" size={24} />
              <Text style={styles.actionText}>削除</Text>
@@ -185,17 +204,20 @@ export default function TaskItem({ task, onToggle, onDelete, onToggleTimer, mode
             {task.subTasks && task.subTasks.length > 0 && (
                 <View style={styles.subTaskSection}>
                     {task.subTasks.map(subTask => (
-                        <View key={subTask.id} style={styles.subTaskItem}>
-                            <TouchableOpacity 
+                        <TouchableOpacity 
+                            key={subTask.id} 
+                            style={styles.subTaskItem}
+                            onPress={() => toggleSubTask(task.id, subTask.id)}
+                        >
+                            <View 
                                 style={[styles.subTaskCheck, subTask.completed && { backgroundColor: theme.primary, borderColor: theme.primary }]}
-                                onPress={() => toggleSubTask(task.id, subTask.id)}
                             >
                                 {subTask.completed && <Check color="#FFF" size={10} />}
-                            </TouchableOpacity>
+                            </View>
                             <Text style={[styles.subTaskTitle, subTask.completed && styles.completedText]}>
                                 {subTask.title}
                             </Text>
-                        </View>
+                        </TouchableOpacity>
                     ))}
                 </View>
             )}
@@ -242,7 +264,7 @@ export default function TaskItem({ task, onToggle, onDelete, onToggleTimer, mode
                                 key={size} 
                                 style={[
                                     styles.sizeOption, 
-                                    editSize === size && { backgroundColor: theme.primary, borderColor: theme.primary }
+                                    editSize === size && { backgroundColor: getSizeColor(size), borderColor: getSizeColor(size) }
                                 ]}
                                 onPress={() => setEditSize(size)}
                             >
@@ -255,13 +277,16 @@ export default function TaskItem({ task, onToggle, onDelete, onToggleTimer, mode
                     <View style={styles.modalSubTaskList}>
                          {task.subTasks && task.subTasks.map(subTask => (
                             <View key={subTask.id} style={styles.modalSubTaskItem}>
-                                <TouchableOpacity onPress={() => toggleSubTask(task.id, subTask.id)}>
+                                <TouchableOpacity 
+                                    style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}
+                                    onPress={() => toggleSubTask(task.id, subTask.id)}
+                                >
                                     <View style={[styles.subTaskCheck, subTask.completed && { backgroundColor: theme.primary, borderColor: theme.primary }]}>
                                         {subTask.completed && <Check color="#FFF" size={10} />}
                                     </View>
+                                    <Text style={[styles.modalSubTaskTitle, subTask.completed && styles.completedText, { marginLeft: 8 }]}>{subTask.title}</Text>
                                 </TouchableOpacity>
-                                <Text style={[styles.modalSubTaskTitle, subTask.completed && styles.completedText, { flex: 1, marginLeft: 8 }]}>{subTask.title}</Text>
-                                <TouchableOpacity onPress={() => deleteSubTask(task.id, subTask.id)}>
+                                <TouchableOpacity onPress={() => deleteSubTask(task.id, subTask.id)} style={{ padding: 8 }}>
                                     <Trash2 color="#EF4444" size={18} />
                                 </TouchableOpacity>
                             </View>
