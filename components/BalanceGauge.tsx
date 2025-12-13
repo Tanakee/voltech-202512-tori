@@ -1,23 +1,54 @@
 import { Colors } from '@/constants/theme';
 import { useApp } from '@/context/AppContext';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 export default function BalanceGauge() {
   const { tasks } = useApp();
+  const [workTime, setWorkTime] = useState(0);
+  const [privateTime, setPrivateTime] = useState(0);
 
-  const workTasks = tasks.filter(t => t.type === 'work');
-  const privateTasks = tasks.filter(t => t.type === 'private');
+  const calculateTotalTime = () => {
+    const now = Date.now();
+    let wTime = 0;
+    let pTime = 0;
 
-  const workCompleted = workTasks.filter(t => t.completed).length;
-  const privateCompleted = privateTasks.filter(t => t.completed).length;
+    tasks.forEach(t => {
+      let time = t.elapsedTime;
+      if (t.isRunning && t.startTime) {
+        time += (now - t.startTime) / 1000;
+      }
+      
+      if (t.type === 'work') wTime += time;
+      else pTime += time;
+    });
 
-  const workProgress = workTasks.length > 0 ? workCompleted / workTasks.length : 0;
-  const privateProgress = privateTasks.length > 0 ? privateCompleted / privateTasks.length : 0;
+    setWorkTime(wTime);
+    setPrivateTime(pTime);
+  };
+
+  useEffect(() => {
+    calculateTotalTime(); // Initial calculation
+
+    const isAnyRunning = tasks.some(t => t.isRunning);
+    let interval: NodeJS.Timeout;
+
+    if (isAnyRunning) {
+      interval = setInterval(calculateTotalTime, 1000);
+    }
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [tasks]);
+
+  const totalTime = workTime + privateTime;
+  const workProgress = totalTime > 0 ? workTime / totalTime : 0;
+  const privateProgress = totalTime > 0 ? privateTime / totalTime : 0;
 
   return (
     <View style={styles.container}>
-      <Text style={styles.headerTitle}>Life Balance</Text>
+      <Text style={styles.headerTitle}>Life Balance (Time Based)</Text>
       
       <View style={styles.row}>
         <Text style={[styles.label, { color: Colors.work.text }]}>Work</Text>

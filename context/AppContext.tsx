@@ -8,6 +8,9 @@ export interface Task {
   title: string;
   completed: boolean;
   type: Mode;
+  elapsedTime: number; // in seconds
+  isRunning: boolean;
+  startTime?: number;
 }
 
 interface AppContextType {
@@ -17,6 +20,7 @@ interface AppContextType {
   addTask: (title: string) => void;
   toggleTask: (id: string) => void;
   deleteTask: (id: string) => void;
+  toggleTaskTimer: (id: string) => void;
   workLocation: Location.LocationObject | null;
   setWorkLocation: (loc: Location.LocationObject) => void;
   homeLocation: Location.LocationObject | null;
@@ -26,27 +30,102 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const TASKS_STORAGE_KEY = 'voltech_tasks_v1';
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [mode, setMode] = useState<Mode>('private');
-  const [tasks, setTasks] = useState<Task[]>([
-    { id: '1', title: '夕食の買い物', completed: false, type: 'private' },
-    { id: '2', title: '週報の作成', completed: false, type: 'work' },
-    { id: '3', title: 'ジムに行く', completed: false, type: 'private' },
-    { id: '4', title: 'クライアントへのメール返信', completed: false, type: 'work' },
-  ]);
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [workLocation, setWorkLocation] = useState<Location.LocationObject | null>(null);
   const [homeLocation, setHomeLocation] = useState<Location.LocationObject | null>(null);
 
+  // Load tasks from storage
+  useEffect(() => {
+    const loadTasks = async () => {
+      try {
+        const storedTasks = await AsyncStorage.getItem(TASKS_STORAGE_KEY);
+        if (storedTasks) {
+          setTasks(JSON.parse(storedTasks));
+        } else {
+          // Initial dummy data if storage is empty
+          setTasks([
+            { id: '1', title: '夕食の買い物', completed: false, type: 'private', elapsedTime: 0, isRunning: false },
+            { id: '2', title: '週報の作成', completed: false, type: 'work', elapsedTime: 0, isRunning: false },
+            { id: '3', title: 'ジムに行く', completed: false, type: 'private', elapsedTime: 0, isRunning: false },
+            { id: '4', title: 'クライアントへのメール返信', completed: false, type: 'work', elapsedTime: 0, isRunning: false },
+          ]);
+        }
+      } catch (e) {
+        console.error('Failed to load tasks', e);
+      }
+    };
+    loadTasks();
+  }, []);
+
+  // Save tasks to storage whenever they change
+  useEffect(() => {
+    const saveTasks = async () => {
+      try {
+        await AsyncStorage.setItem(TASKS_STORAGE_KEY, JSON.stringify(tasks));
+      } catch (e) {
+        console.error('Failed to save tasks', e);
+      }
+    };
+    // Debounce saving slightly or just save on every change (fine for small data)
+    if (tasks.length > 0) {
+        saveTasks();
+    }
+  }, [tasks]);
+
   const addTask = (title: string) => {
-    setTasks([...tasks, { id: Date.now().toString(), title, completed: false, type: mode }]);
+    setTasks(prev => [...prev, { 
+      id: Date.now().toString(), 
+      title, 
+      completed: false, 
+      type: mode,
+      elapsedTime: 0,
+      isRunning: false
+    }]);
   };
 
   const toggleTask = (id: string) => {
-    setTasks(tasks.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
   };
 
   const deleteTask = (id: string) => {
-    setTasks(tasks.filter(t => t.id !== id));
+    setTasks(prev => prev.filter(t => t.id !== id));
+  };
+
+  const toggleTaskTimer = (id: string) => {
+    setTasks(prevTasks => {
+      // If starting a task, stop all other tasks first (optional, but good for focus)
+      // For now, let's allow only one task running at a time for "Focus Mode" simplicity
+      const targetTask = prevTasks.find(t => t.id === id);
+      if (!targetTask) return prevTasks;
+
+      const isStarting = !targetTask.isRunning;
+      const now = Date.now();
+
+      return prevTasks.map(t => {
+        if (t.id === id) {
+          if (isStarting) {
+            return { ...t, isRunning: true, startTime: now };
+          } else {
+            // Stopping
+            const addedTime = t.startTime ? (now - t.startTime) / 1000 : 0;
+            return { ...t, isRunning: false, startTime: undefined, elapsedTime: t.elapsedTime + addedTime };
+          }
+        } else {
+          // If we want to stop others when one starts:
+          if (isStarting && t.isRunning) {
+             const addedTime = t.startTime ? (now - t.startTime) / 1000 : 0;
+             return { ...t, isRunning: false, startTime: undefined, elapsedTime: t.elapsedTime + addedTime };
+          }
+          return t;
+        }
+      });
+    });
   };
 
   const checkLocation = async () => {
@@ -73,7 +152,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <AppContext.Provider value={{
       mode, setMode,
-      tasks, addTask, toggleTask, deleteTask,
+      tasks, addTask, toggleTask, deleteTask, toggleTaskTimer,
       workLocation, setWorkLocation,
       homeLocation, setHomeLocation,
       checkLocation
