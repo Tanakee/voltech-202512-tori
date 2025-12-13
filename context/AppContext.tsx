@@ -1,7 +1,9 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
 export type Mode = 'work' | 'private';
+export type TaskSize = 'S' | 'M' | 'L';
 
 export interface Task {
   id: string;
@@ -11,13 +13,14 @@ export interface Task {
   elapsedTime: number; // in seconds
   isRunning: boolean;
   startTime?: number;
+  size: TaskSize;
 }
 
 interface AppContextType {
   mode: Mode;
   setMode: (mode: Mode) => void;
   tasks: Task[];
-  addTask: (title: string) => void;
+  addTask: (title: string, size: TaskSize) => void;
   toggleTask: (id: string) => void;
   deleteTask: (id: string) => void;
   toggleTaskTimer: (id: string) => void;
@@ -26,11 +29,11 @@ interface AppContextType {
   homeLocation: Location.LocationObject | null;
   setHomeLocation: (loc: Location.LocationObject) => void;
   checkLocation: () => Promise<void>;
+  isLowEnergyMode: boolean;
+  setLowEnergyMode: (enabled: boolean) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
-
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const TASKS_STORAGE_KEY = 'voltech_tasks_v1';
 
@@ -39,6 +42,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [workLocation, setWorkLocation] = useState<Location.LocationObject | null>(null);
   const [homeLocation, setHomeLocation] = useState<Location.LocationObject | null>(null);
+  const [isLowEnergyMode, setLowEnergyMode] = useState(false);
 
   // Load tasks from storage
   useEffect(() => {
@@ -50,10 +54,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         } else {
           // Initial dummy data if storage is empty
           setTasks([
-            { id: '1', title: '夕食の買い物', completed: false, type: 'private', elapsedTime: 0, isRunning: false },
-            { id: '2', title: '週報の作成', completed: false, type: 'work', elapsedTime: 0, isRunning: false },
-            { id: '3', title: 'ジムに行く', completed: false, type: 'private', elapsedTime: 0, isRunning: false },
-            { id: '4', title: 'クライアントへのメール返信', completed: false, type: 'work', elapsedTime: 0, isRunning: false },
+            { id: '1', title: '夕食の買い物', completed: false, type: 'private', elapsedTime: 0, isRunning: false, size: 'S' },
+            { id: '2', title: '週報の作成', completed: false, type: 'work', elapsedTime: 0, isRunning: false, size: 'M' },
+            { id: '3', title: 'ジムに行く', completed: false, type: 'private', elapsedTime: 0, isRunning: false, size: 'L' },
+            { id: '4', title: 'クライアントへのメール返信', completed: false, type: 'work', elapsedTime: 0, isRunning: false, size: 'S' },
           ]);
         }
       } catch (e) {
@@ -78,14 +82,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [tasks]);
 
-  const addTask = (title: string) => {
+  const addTask = (title: string, size: TaskSize) => {
     setTasks(prev => [...prev, { 
       id: Date.now().toString(), 
       title, 
       completed: false, 
       type: mode,
       elapsedTime: 0,
-      isRunning: false
+      isRunning: false,
+      size
     }]);
   };
 
@@ -155,7 +160,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       tasks, addTask, toggleTask, deleteTask, toggleTaskTimer,
       workLocation, setWorkLocation,
       homeLocation, setHomeLocation,
-      checkLocation
+      checkLocation,
+      isLowEnergyMode, setLowEnergyMode
     }}>
       {children}
     </AppContext.Provider>
