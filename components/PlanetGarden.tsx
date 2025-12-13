@@ -1,7 +1,8 @@
 import { useApp } from '@/context/AppContext';
+import { Ionicons } from '@expo/vector-icons';
 import { Canvas, useFrame } from '@react-three/fiber';
-import React, { useMemo, useRef } from 'react';
-import { PanResponder, StyleSheet, Text, View } from 'react-native';
+import React, { useMemo, useRef, useState } from 'react';
+import { Alert, Modal, PanResponder, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import * as THREE from 'three';
 
 // 球面上の位置と回転を計算するヘルパー
@@ -21,64 +22,229 @@ const getPositionOnSphere = (r: number, phi: number, theta: number) => {
   };
 };
 
-function PlanetTree({ position, rotation, color, type }: { position: [number, number, number], rotation: [number, number, number], color: string, type: 'work' | 'private' }) {
+// 木（Private用）
+function PlanetTree({ position, rotation, color }: { position: [number, number, number], rotation: [number, number, number], color: string }) {
   return (
-    <group position={position} rotation={rotation}>
-      {/* 幹 */}
+    <group position={position} rotation={rotation} scale={[0.7, 0.7, 0.7]}>
       <mesh position={[0, 0.15, 0]}>
         <cylinderGeometry args={[0.05, 0.08, 0.4, 5]} />
         <meshStandardMaterial color="#8B4513" />
       </mesh>
-      
-      {/* 葉っぱ */}
       <mesh position={[0, 0.5, 0]}>
-        {type === 'work' ? (
-          <coneGeometry args={[0.25, 0.6, 3]} />
-        ) : (
-          <dodecahedronGeometry args={[0.25, 0]} />
-        )}
+        <dodecahedronGeometry args={[0.25, 0]} />
         <meshStandardMaterial color={color} />
       </mesh>
     </group>
   );
 }
 
-function Rock({ position, rotation }: { position: [number, number, number], rotation: [number, number, number] }) {
+// 工場（Work用）
+function Factory({ position, rotation, color }: { position: [number, number, number], rotation: [number, number, number], color: string }) {
+  const roofShape = useMemo(() => {
+    const s = new THREE.Shape();
+    const w = 0.1; // 屋根1つの幅
+    const h = 0.08; // 屋根の高さ
+    
+    s.moveTo(-0.15, 0); // 左端からスタート
+    
+    // 1つ目の山
+    s.lineTo(-0.15, h);
+    s.lineTo(-0.05, 0);
+    
+    // 2つ目の山
+    s.lineTo(-0.05, h);
+    s.lineTo(0.05, 0);
+    
+    // 3つ目の山
+    s.lineTo(0.05, h);
+    s.lineTo(0.15, 0);
+    
+    s.lineTo(-0.15, 0); // 閉じる
+    return s;
+  }, []);
+
+  const extrudeSettings = useMemo(() => ({
+    depth: 0.2,
+    bevelEnabled: false
+  }), []);
+
   return (
-    <mesh position={position} rotation={rotation}>
-      <dodecahedronGeometry args={[0.15, 0]} />
-      <meshStandardMaterial color="#64748B" flatShading />
-    </mesh>
+    <group position={position} rotation={rotation} scale={[0.6, 0.6, 0.6]}>
+      {/* 土台（本体） */}
+      <mesh position={[0, 0.1, 0]}>
+        <boxGeometry args={[0.3, 0.2, 0.2]} />
+        <meshStandardMaterial color={color} />
+      </mesh>
+
+      {/* のこぎり屋根 */}
+      <mesh position={[0, 0.2, -0.1]}>
+         <extrudeGeometry args={[roofShape, extrudeSettings]} />
+         <meshStandardMaterial color={color} />
+      </mesh>
+
+      {/* 煙突 */}
+      <mesh position={[0.1, 0.35, -0.05]}>
+        <cylinderGeometry args={[0.02, 0.02, 0.3]} />
+        <meshStandardMaterial color="#334155" />
+      </mesh>
+      {/* 煙（簡易的） */}
+      <mesh position={[0.12, 0.52, -0.05]}>
+         <dodecahedronGeometry args={[0.03, 0]} />
+         <meshStandardMaterial color="#CBD5E1" transparent opacity={0.8} />
+      </mesh>
+
+      {/* 窓 */}
+      <mesh position={[-0.08, 0.1, 0.105]}>
+         <planeGeometry args={[0.05, 0.08]} />
+         <meshStandardMaterial color="#FDE047" emissive="#FDE047" emissiveIntensity={0.5} />
+      </mesh>
+      <mesh position={[0.08, 0.1, 0.105]}>
+         <planeGeometry args={[0.05, 0.08]} />
+         <meshStandardMaterial color="#FDE047" emissive="#FDE047" emissiveIntensity={0.5} />
+      </mesh>
+    </group>
   );
 }
 
-// 光るクリスタルの鉱脈
-function CrystalCluster({ position, rotation }: { position: [number, number, number], rotation: [number, number, number] }) {
+// 家（Private用）
+function House({ position, rotation, color }: { position: [number, number, number], rotation: [number, number, number], color: string }) {
   return (
-    <group position={position} rotation={rotation}>
-      {/* メインのクリスタル */}
+    <group position={position} rotation={rotation} scale={[0.6, 0.6, 0.6]}>
+      <mesh position={[0, 0.15, 0]}>
+        <boxGeometry args={[0.18, 0.2, 0.18]} />
+        <meshStandardMaterial color="#FDE68A" />
+      </mesh>
+      <mesh position={[0, 0.3, 0]} rotation={[0, Math.PI / 4, 0]}>
+        <coneGeometry args={[0.2, 0.15, 4]} />
+        <meshStandardMaterial color={color} />
+      </mesh>
+    </group>
+  );
+}
+
+// 花（Private用）
+function Flower({ position, rotation }: { position: [number, number, number], rotation: [number, number, number] }) {
+  return (
+    <group position={position} rotation={rotation} scale={[0.6, 0.6, 0.6]}>
+      {/* 茎 */}
+      <mesh position={[0, 0.15, 0]}>
+        <cylinderGeometry args={[0.02, 0.02, 0.2, 5]} />
+        <meshStandardMaterial color="#4ADE80" />
+      </mesh>
+      {/* 中心 */}
+      <mesh position={[0, 0.27, 0]}>
+        <icosahedronGeometry args={[0.06, 0]} />
+        <meshStandardMaterial color="#FDE047" />
+      </mesh>
+      {/* 花びら */}
+      {[...Array(5)].map((_, i) => (
+         <mesh key={i} position={[Math.sin(i/5 * Math.PI*2)*0.08, 0.25, Math.cos(i/5 * Math.PI*2)*0.08]} rotation={[0.5, i/5 * Math.PI*2, 0]}>
+            <dodecahedronGeometry args={[0.05, 0]} />
+            <meshStandardMaterial color="#F472B6" />
+         </mesh>
+      ))}
+    </group>
+  );
+}
+
+// キノコ（Private用）
+function Mushroom({ position, rotation }: { position: [number, number, number], rotation: [number, number, number] }) {
+  return (
+    <group position={position} rotation={rotation} scale={[0.7, 0.7, 0.7]}>
+      {/* 柄 */}
+      <mesh position={[0, 0.2, 0]}>
+        <cylinderGeometry args={[0.04, 0.06, 0.2, 6]} />
+        <meshStandardMaterial color="#F1F5F9" />
+      </mesh>
+      {/* かさ */}
+      <mesh position={[0, 0.3, 0]}>
+        <coneGeometry args={[0.18, 0.15, 8]} />
+        <meshStandardMaterial color="#EF4444" />
+      </mesh>
+      {/* 水玉模様 */}
+      {[...Array(4)].map((_, i) => (
+         <mesh key={i} position={[Math.sin(i/4 * Math.PI*2)*0.08, 0.32, Math.cos(i/4 * Math.PI*2)*0.08]}>
+            <dodecahedronGeometry args={[0.03, 0]} />
+            <meshStandardMaterial color="#F1F5F9" />
+         </mesh>
+      ))}
+    </group>
+  );
+}
+
+// オブジェクトの出し分け
+function PlanetObject({ position, rotation, type, id }: { position: [number, number, number], rotation: [number, number, number], type: 'work' | 'private', id: string }) {
+  const variant = useMemo(() => {
+    const charCode = id.charCodeAt(id.length - 1);
+    return charCode; 
+  }, [id]);
+
+  if (type === 'work') {
+    // Work: 工場(50%) or 家(50%)
+    if (variant % 2 === 0) {
+      return <Factory position={position} rotation={rotation} color="#60A5FA" />;
+    } else {
+      return <House position={position} rotation={rotation} color="#F97316" />;
+    }
+  } else {
+    // Private: 木, 花, キノコ
+    const natureVariant = variant % 3;
+    if (natureVariant === 0) {
+      return <PlanetTree position={position} rotation={rotation} color="#4ADE80" />;
+    } else if (natureVariant === 1) {
+      return <Flower position={position} rotation={rotation} />;
+    } else {
+      return <Mushroom position={position} rotation={rotation} />;
+    }
+  }
+}
+
+// 岩（Rock）コンポーネント（onClick追加）
+function Rock({ position, rotation, onClick }: { position: [number, number, number], rotation: [number, number, number], onClick: () => void }) {
+  return (
+    <group position={position} rotation={rotation} scale={[0.5, 0.5, 0.5]} onClick={(e) => { e.stopPropagation(); onClick(); }}>
+      <mesh position={[0, 0.1, 0]}>
+        <dodecahedronGeometry args={[0.15, 0]} />
+        <meshStandardMaterial color="#64748B" flatShading />
+      </mesh>
+    </group>
+  );
+}
+
+// 雑草（Weed）コンポーネント
+function Weed({ position, rotation, onClick }: { position: [number, number, number], rotation: [number, number, number], onClick: () => void }) {
+  return (
+    <group position={position} rotation={rotation} scale={[0.5, 0.5, 0.5]} onClick={(e) => { e.stopPropagation(); onClick(); }}>
+      {[...Array(3)].map((_, i) => (
+         <mesh key={i} position={[0, 0, 0]} rotation={[0, (i * Math.PI * 2) / 3, Math.PI / 6]}>
+            <planeGeometry args={[0.1, 0.3]} />
+            <meshStandardMaterial color="#86EFAC" side={THREE.DoubleSide} />
+         </mesh>
+      ))}
+    </group>
+  );
+}
+
+function CrystalCluster({ position, rotation, onClick }: { position: [number, number, number], rotation: [number, number, number], onClick?: () => void }) {
+  return (
+    <group position={position} rotation={rotation} scale={[0.6, 0.6, 0.6]} onClick={(e) => { e.stopPropagation(); onClick?.(); }}>
       <mesh position={[0, 0.3, 0]}>
         <cylinderGeometry args={[0, 0.15, 0.8, 4]} />
         <meshStandardMaterial color="#A78BFA" emissive="#7C3AED" emissiveIntensity={0.5} roughness={0.1} />
       </mesh>
-      {/* サブのクリスタル1 */}
       <mesh position={[0.15, 0.2, 0.1]} rotation={[0.2, 0, 0.2]}>
         <cylinderGeometry args={[0, 0.1, 0.5, 4]} />
         <meshStandardMaterial color="#A78BFA" emissive="#7C3AED" emissiveIntensity={0.5} roughness={0.1} />
       </mesh>
-      {/* サブのクリスタル2 */}
       <mesh position={[-0.1, 0.25, -0.1]} rotation={[-0.2, 0, -0.1]}>
         <cylinderGeometry args={[0, 0.12, 0.6, 4]} />
         <meshStandardMaterial color="#A78BFA" emissive="#7C3AED" emissiveIntensity={0.5} roughness={0.1} />
       </mesh>
-      
-      {/* 光源 */}
       <pointLight color="#A78BFA" intensity={1.5} distance={3} decay={2} position={[0, 0.5, 0]} />
     </group>
   );
 }
 
-// 自動回転＆慣性コンポーネント
 function AutoRotator({ groupRef, isDragging, velocity }: { 
   groupRef: React.RefObject<THREE.Group>, 
   isDragging: React.MutableRefObject<boolean>,
@@ -87,16 +253,12 @@ function AutoRotator({ groupRef, isDragging, velocity }: {
   useFrame(() => {
     if (groupRef.current) {
       if (!isDragging.current) {
-        // 慣性回転
         if (Math.abs(velocity.current.x) > 0.0001 || Math.abs(velocity.current.y) > 0.0001) {
           groupRef.current.rotation.y += velocity.current.x;
           groupRef.current.rotation.x += velocity.current.y;
-          
-          // 減衰 (摩擦)
           velocity.current.x *= 0.95;
           velocity.current.y *= 0.95;
         } else {
-          // 完全に止まったら自動回転（Y軸のみ）
           groupRef.current.rotation.y += 0.002;
         }
       }
@@ -105,12 +267,41 @@ function AutoRotator({ groupRef, isDragging, velocity }: {
   return null;
 }
 
+function SelectionMarker({ position }: { position: [number, number, number] }) {
+    const ref = useRef<THREE.Mesh>(null);
+    
+    const posVec = useMemo(() => new THREE.Vector3(...position), [position]);
+    const direction = useMemo(() => posVec.clone().normalize(), [posVec]);
+
+    useFrame((state) => {
+        if (ref.current) {
+            ref.current.rotation.y += 0.05;
+            
+            // Bobbing effect along the normal vector
+            const offset = 0.3 + Math.sin(state.clock.elapsedTime * 3) * 0.05;
+            ref.current.position.copy(posVec).add(direction.clone().multiplyScalar(offset));
+            
+            // Align with surface normal
+            ref.current.lookAt(new THREE.Vector3(0,0,0));
+        }
+    });
+    return (
+        <mesh ref={ref}>
+            <octahedronGeometry args={[0.1, 0]} />
+            <meshStandardMaterial color="#FDE047" emissive="#FDE047" emissiveIntensity={0.5} />
+        </mesh>
+    );
+}
+
 export default function PlanetGarden() {
-  const { tasks } = useApp();
+  const { tasks, shovels, pickaxes, items, useTool, removedDecorationIds } = useApp();
   const groupRef = useRef<THREE.Group>(null);
   const rotationRef = useRef({ x: 0, y: 0 });
   const isDragging = useRef(false);
   const velocity = useRef({ x: 0, y: 0 });
+  
+  const [selectedDecoration, setSelectedDecoration] = useState<{ id: string, type: string, position: [number, number, number] } | null>(null);
+  const [showInventory, setShowInventory] = useState(false);
 
   const completedTasks = useMemo(() => {
     return tasks
@@ -118,45 +309,101 @@ export default function PlanetGarden() {
       .slice(-50);
   }, [tasks]);
 
-  const trees = useMemo(() => {
+  const objects = useMemo(() => {
     const count = completedTasks.length;
     return completedTasks.map((task, index) => {
       const phi = Math.acos(1 - 2 * (index + 0.5) / count);
       const theta = Math.PI * (1 + Math.sqrt(5)) * (index + 0.5);
       return {
         id: task.id,
-        ...getPositionOnSphere(1.95, phi, theta),
-        color: task.type === 'work' ? '#3B82F6' : '#F97316',
+        ...getPositionOnSphere(1.93, phi, theta),
         type: task.type
       };
     });
   }, [completedTasks]);
 
+  // 固定の装飾（クリスタル、岩、雑草）
   const decorations = useMemo(() => {
     const items = [];
-    items.push({ type: 'crystal', ...getPositionOnSphere(1.9, Math.PI / 4, 0) });
-    items.push({ type: 'crystal', ...getPositionOnSphere(1.9, Math.PI / 1.5, Math.PI) });
-    for (let i = 0; i < 5; i++) {
+    
+    // クリスタル (2箇所)
+    items.push({ id: 'crystal-1', type: 'crystal', ...getPositionOnSphere(1.9, Math.PI / 4, 0) });
+    items.push({ id: 'crystal-2', type: 'crystal', ...getPositionOnSphere(1.9, Math.PI / 1.5, Math.PI) });
+
+    // 岩 (10個) - 固定シードで配置
+    for (let i = 0; i < 10; i++) {
+        const phi = Math.acos(1 - 2 * (i + 0.5) / 10); 
+        const theta = Math.PI * (1 + Math.sqrt(5)) * (i + 0.5) + 1; 
         items.push({ 
+            id: `rock-${i}`,
             type: 'rock', 
-            ...getPositionOnSphere(1.95, Math.random() * Math.PI, Math.random() * Math.PI * 2) 
+            ...getPositionOnSphere(1.95, phi, theta) 
         });
     }
+
+    // 雑草 (10個)
+    for (let i = 0; i < 10; i++) {
+        const phi = Math.acos(1 - 2 * (i + 0.5) / 10);
+        const theta = Math.PI * (1 + Math.sqrt(5)) * (i + 0.5) + 2;
+        items.push({
+            id: `weed-${i}`,
+            type: 'weed',
+            ...getPositionOnSphere(1.95, phi, theta)
+        });
+    }
+
     return items;
   }, []);
+
+  // 削除されたものを除外
+  const visibleDecorations = useMemo(() => {
+      return decorations.filter(d => !removedDecorationIds.includes(d.id));
+  }, [decorations, removedDecorationIds]);
+
+  const handleDecorationClick = (id: string, type: string, position: [number, number, number]) => {
+      setSelectedDecoration({ id, type, position });
+  };
+
+  const handleRemove = () => {
+      if (!selectedDecoration) return;
+
+      const { id, type } = selectedDecoration;
+      let toolType: 'shovel' | 'pickaxe' = 'shovel';
+      if (type === 'rock' || type === 'crystal') {
+          toolType = 'pickaxe';
+      }
+
+      const result = useTool(toolType, id, type);
+      
+      if (result.success) {
+          setSelectedDecoration(null);
+          if (result.droppedItem) {
+              const itemName = result.droppedItem === 'rusty_watch' ? '錆びた時計' : '壊れた機械';
+              Alert.alert('アイテム獲得！', `「${itemName}」を手に入れました！`);
+          }
+      } else {
+          if (toolType === 'pickaxe') {
+              Alert.alert('ピッケルが足りません', '大きなタスクを完了するか、運が良いと手に入ります。');
+          } else {
+              Alert.alert('シャベルが足りません', 'タスクを完了してシャベルを手に入れましょう（1日3回まで）。');
+          }
+      }
+  };
 
   const panResponder = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
     onPanResponderGrant: () => {
       isDragging.current = true;
-      velocity.current = { x: 0, y: 0 }; // タッチしたら慣性ストップ
+      velocity.current = { x: 0, y: 0 };
       if (groupRef.current) {
         rotationRef.current = {
           x: groupRef.current.rotation.x,
           y: groupRef.current.rotation.y
         };
       }
+      // Deselect on drag start (optional, but good UX)
+      // setSelectedDecoration(null); 
     },
     onPanResponderMove: (_, gestureState) => {
       if (groupRef.current) {
@@ -166,11 +413,13 @@ export default function PlanetGarden() {
     },
     onPanResponderRelease: (_, gestureState) => {
       isDragging.current = false;
-      // 離した瞬間の速度をセット（慣性用）
       velocity.current = { 
         x: gestureState.vx * 0.015, 
         y: gestureState.vy * 0.015 
       };
+      // If tap (no movement), we might want to deselect if clicked on background
+      // But Canvas clicks are hard to distinguish from background clicks without Raycaster.
+      // For now, we rely on object clicks.
     },
     onPanResponderTerminate: () => {
       isDragging.current = false;
@@ -181,7 +430,16 @@ export default function PlanetGarden() {
     <View style={styles.container} {...panResponder.panHandlers}>
       <View style={styles.header}>
         <Text style={styles.title}>Your Planet</Text>
-        <Text style={styles.subtitle}>{completedTasks.length} trees planted</Text>
+        <Text style={styles.subtitle}>{completedTasks.length} objects built</Text>
+        <View style={styles.statsContainer}>
+            <View style={styles.toolContainer}>
+                <Text style={styles.toolText}>Shovels: {shovels}</Text>
+                <Text style={styles.toolText}>Pickaxes: {pickaxes}</Text>
+            </View>
+            <TouchableOpacity onPress={() => setShowInventory(true)} style={styles.inventoryButton}>
+                <Ionicons name="briefcase" size={20} color="#FFF" />
+            </TouchableOpacity>
+        </View>
       </View>
       <Canvas camera={{ position: [0, 0, 6], fov: 50 }} dpr={[1, 2]}>
         <ambientLight intensity={0.4} />
@@ -189,35 +447,85 @@ export default function PlanetGarden() {
         <pointLight position={[-10, -10, -5]} intensity={0.3} color="#FFF" />
         
         <group ref={groupRef}>
-          {/* 惑星本体 */}
           <mesh>
-            <icosahedronGeometry args={[2, 1]} />
+            <icosahedronGeometry args={[2, 3]} />
             <meshStandardMaterial color="#4ADE80" flatShading roughness={0.8} />
           </mesh>
 
-          {/* 装飾 */}
-          {decorations.map((item, index) => (
-              item.type === 'crystal' ? (
-                  <CrystalCluster key={`crystal-${index}`} position={item.position} rotation={item.rotation} />
-              ) : (
-                  <Rock key={`rock-${index}`} position={item.position} rotation={item.rotation} />
-              )
-          ))}
+          {visibleDecorations.map((item) => {
+              if (item.type === 'crystal') {
+                  return <CrystalCluster key={item.id} position={item.position} rotation={item.rotation} onClick={() => handleDecorationClick(item.id, 'crystal', item.position)} />;
+              } else if (item.type === 'rock') {
+                  return <Rock key={item.id} position={item.position} rotation={item.rotation} onClick={() => handleDecorationClick(item.id, 'rock', item.position)} />;
+              } else if (item.type === 'weed') {
+                  return <Weed key={item.id} position={item.position} rotation={item.rotation} onClick={() => handleDecorationClick(item.id, 'weed', item.position)} />;
+              }
+              return null;
+          })}
 
-          {/* 木々 */}
-          {trees.map(tree => (
-            <PlanetTree 
-              key={tree.id} 
-              position={tree.position} 
-              rotation={tree.rotation} 
-              color={tree.color} 
-              type={tree.type} 
+          {selectedDecoration && (
+              <SelectionMarker position={selectedDecoration.position} />
+          )}
+
+          {objects.map(obj => (
+            <PlanetObject 
+              key={obj.id} 
+              id={obj.id}
+              position={obj.position} 
+              rotation={obj.rotation} 
+              type={obj.type} 
             />
           ))}
         </group>
 
         <AutoRotator groupRef={groupRef} isDragging={isDragging} velocity={velocity} />
       </Canvas>
+
+      {selectedDecoration && (
+          <View style={styles.selectionFooter}>
+              <Text style={styles.selectionText}>
+                  {selectedDecoration.type === 'crystal' ? 'クリスタル' : selectedDecoration.type === 'rock' ? '岩' : '雑草'}
+              </Text>
+              <TouchableOpacity style={styles.removeButton} onPress={handleRemove}>
+                  <Text style={styles.removeButtonText}>
+                      削除 ({selectedDecoration.type === 'weed' ? 'シャベル' : 'ピッケル'})
+                  </Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.cancelButton} onPress={() => setSelectedDecoration(null)}>
+                  <Text style={styles.cancelButtonText}>キャンセル</Text>
+              </TouchableOpacity>
+          </View>
+      )}
+
+      <Modal visible={showInventory} animationType="slide" transparent>
+          <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                  <Text style={styles.modalTitle}>持ち物</Text>
+                  <ScrollView style={styles.inventoryList}>
+                      {Object.keys(items).length === 0 ? (
+                          <Text style={styles.emptyText}>アイテムを持っていません</Text>
+                      ) : (
+                          Object.entries(items).map(([key, count]) => (
+                              <View key={key} style={styles.inventoryItem}>
+                                  <Text style={styles.itemIcon}>
+                                      {key === 'rusty_watch' ? '🕰️' : key === 'broken_machine' ? '📱' : '❓'}
+                                  </Text>
+                                  <View style={styles.itemInfo}>
+                                      <Text style={styles.itemName}>
+                                          {key === 'rusty_watch' ? '錆びた時計' : key === 'broken_machine' ? '壊れた機械' : key}
+                                      </Text>
+                                      <Text style={styles.itemCount}>x{count}</Text>
+                                  </View>
+                              </View>
+                          ))
+                      )}
+                  </ScrollView>
+                  <TouchableOpacity style={styles.closeButton} onPress={() => setShowInventory(false)}>
+                      <Text style={styles.closeButtonText}>閉じる</Text>
+                  </TouchableOpacity>
+              </View>
+          </View>
+      </Modal>
     </View>
   );
 }
@@ -231,6 +539,7 @@ const styles = StyleSheet.create({
       position: 'absolute',
       top: 50,
       left: 20,
+      right: 20,
       zIndex: 10,
   },
   title: {
@@ -242,5 +551,127 @@ const styles = StyleSheet.create({
       fontSize: 16,
       color: '#94A3B8',
       marginTop: 4,
+  },
+  statsContainer: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginTop: 8,
+  },
+  toolContainer: {
+      backgroundColor: 'rgba(255, 255, 255, 0.1)',
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 12,
+      flexDirection: 'row',
+      gap: 10,
+  },
+  toolText: {
+      color: '#FDE047', // Yellow
+      fontWeight: 'bold',
+  },
+  inventoryButton: {
+      backgroundColor: 'rgba(255, 255, 255, 0.2)',
+      padding: 8,
+      borderRadius: 20,
+  },
+  selectionFooter: {
+      position: 'absolute',
+      bottom: 30,
+      left: 20,
+      right: 20,
+      backgroundColor: 'rgba(30, 41, 59, 0.9)',
+      padding: 16,
+      borderRadius: 16,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      borderWidth: 1,
+      borderColor: '#475569',
+  },
+  selectionText: {
+      color: '#FFF',
+      fontSize: 16,
+      fontWeight: 'bold',
+  },
+  removeButton: {
+      backgroundColor: '#EF4444',
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 8,
+      marginRight: 8,
+  },
+  removeButtonText: {
+      color: '#FFF',
+      fontWeight: 'bold',
+  },
+  cancelButton: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+  },
+  cancelButtonText: {
+      color: '#94A3B8',
+  },
+  modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      justifyContent: 'center',
+      alignItems: 'center',
+  },
+  modalContent: {
+      width: '80%',
+      backgroundColor: '#1E293B',
+      borderRadius: 16,
+      padding: 20,
+      maxHeight: '60%',
+  },
+  modalTitle: {
+      fontSize: 20,
+      fontWeight: 'bold',
+      color: '#FFF',
+      marginBottom: 16,
+      textAlign: 'center',
+  },
+  inventoryList: {
+      marginBottom: 16,
+  },
+  emptyText: {
+      color: '#94A3B8',
+      textAlign: 'center',
+      marginTop: 20,
+  },
+  inventoryItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: 'rgba(255, 255, 255, 0.05)',
+      padding: 12,
+      borderRadius: 8,
+      marginBottom: 8,
+  },
+  itemIcon: {
+      fontSize: 24,
+      marginRight: 12,
+  },
+  itemInfo: {
+      flex: 1,
+  },
+  itemName: {
+      color: '#FFF',
+      fontSize: 16,
+      fontWeight: 'bold',
+  },
+  itemCount: {
+      color: '#94A3B8',
+      fontSize: 14,
+  },
+  closeButton: {
+      backgroundColor: '#3B82F6',
+      padding: 12,
+      borderRadius: 8,
+      alignItems: 'center',
+  },
+  closeButtonText: {
+      color: '#FFF',
+      fontWeight: 'bold',
   }
 });
