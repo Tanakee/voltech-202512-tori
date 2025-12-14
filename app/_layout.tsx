@@ -33,7 +33,7 @@ LogBox.ignoreLogs([
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const [loaded] = useFonts({
-      ...MaterialIcons.font,
+      ...(Platform.OS === 'web' ? {} : MaterialIcons.font),
   });
 
   const isReady = loaded;
