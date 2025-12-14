@@ -21,5 +21,6 @@ console.log("Firebase initialized:", app.name);
 // Use initializeFirestore to configure settings
 export const db = initializeFirestore(app, {
   experimentalForceLongPolling: true,
+  ignoreUndefinedProperties: true,
 });
 // export const auth = getAuth(app);
