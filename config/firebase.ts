@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
+import { initializeFirestore } from "firebase/firestore";
 // import { getAuth } from "firebase/auth";
 
 // TODO: Firebaseコンソールから取得した設定値に書き換えてください
@@ -17,5 +17,9 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 console.log("Firebase initialized:", app.name);
-export const db = getFirestore(app);
+
+// Use initializeFirestore to configure settings
+export const db = initializeFirestore(app, {
+  experimentalForceLongPolling: true,
+});
 // export const auth = getAuth(app);
