@@ -3,7 +3,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { SymbolViewProps, SymbolWeight } from 'expo-symbols';
 import { ComponentProps } from 'react';
-import { OpaqueColorValue, type StyleProp, type TextStyle } from 'react-native';
+import { OpaqueColorValue, Platform, Text, type StyleProp, type TextStyle } from 'react-native';
 
 type IconMapping = Record<SymbolViewProps['name'], ComponentProps<typeof MaterialIcons>['name']>;
 type IconSymbolName = keyof typeof MAPPING;
@@ -44,7 +44,22 @@ export function IconSymbol({
 }) {
   const materialIconName = MAPPING[name];
 
-  // WebでもMaterialIconsコンポーネントを直接使用する
-  // これにより、ロードされたフォントが正しく使用される
+  if (Platform.OS === 'web') {
+    // Google Fonts Material Icons (Ligature)
+    // Convert 'format-list-bulleted' -> 'format_list_bulleted'
+    const ligatureName = materialIconName?.replace(/-/g, '_');
+    
+    return (
+      <Text style={[
+        { fontFamily: 'MaterialIcon', fontSize: size, color: color as string }, 
+        style,
+        { fontFamily: 'Material Icons' } // Ensure font-family override
+      ]}>
+        {ligatureName}
+      </Text>
+    );
+  }
+
+  // Android / iOS fallback
   return <MaterialIcons color={color} size={size} name={materialIconName} style={style} />;
 }
