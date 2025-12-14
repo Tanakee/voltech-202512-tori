@@ -20,7 +20,7 @@ import { AppProvider } from '@/context/AppContext';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { LogBox, Platform } from 'react-native';
+import { LogBox } from 'react-native';
 
 LogBox.ignoreLogs([
   'THREE.WARNING: Multiple instances of Three.js being imported.',
@@ -36,7 +36,7 @@ export default function RootLayout() {
       ...MaterialIcons.font,
   });
 
-  const isReady = Platform.OS === 'web' || loaded;
+  const isReady = loaded;
 
   useEffect(() => {
     if (isReady) {
