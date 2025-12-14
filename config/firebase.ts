@@ -1,6 +1,8 @@
-import { initializeApp } from "firebase/app";
-import { initializeFirestore } from "firebase/firestore";
-// import { getAuth } from "firebase/auth";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getApp, getApps, initializeApp } from "firebase/app";
+import { getAuth, getReactNativePersistence, initializeAuth } from "firebase/auth";
+import { getFirestore, initializeFirestore } from "firebase/firestore";
+import { Platform } from 'react-native';
 
 // TODO: Firebaseコンソールから取得した設定値に書き換えてください
 // https://console.firebase.google.com/
@@ -15,12 +17,32 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-const app = initializeApp(firebaseConfig);
+const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 console.log("Firebase initialized:", app.name);
 
-// Use initializeFirestore to configure settings
-export const db = initializeFirestore(app, {
-  experimentalForceLongPolling: true,
-  ignoreUndefinedProperties: true,
-});
-// export const auth = getAuth(app);
+// Initialize Firestore
+let db;
+try {
+  // Try to initialize with settings
+  db = initializeFirestore(app, {
+    experimentalForceLongPolling: true,
+    ignoreUndefinedProperties: true,
+  });
+} catch (e: any) {
+  // If already initialized with different settings (e.g. HMR), fallback to existing instance
+  console.log("Firestore already initialized, using existing instance.");
+  db = getFirestore(app);
+}
+
+// Initialize Auth with Persistence
+let auth;
+if (Platform.OS === 'web') {
+  auth = getAuth(app);
+} else {
+  auth = initializeAuth(app, {
+    persistence: getReactNativePersistence(AsyncStorage)
+  });
+}
+
+export { auth, db };
+

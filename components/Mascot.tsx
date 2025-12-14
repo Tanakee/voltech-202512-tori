@@ -13,7 +13,7 @@ import Animated, {
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
-export default function Mascot() {
+export default function Mascot({ style, size = 50 }: { style?: any, size?: number }) {
   const { tasks } = useApp();
   const runningTask = tasks.find(t => t.isRunning);
   
@@ -103,7 +103,7 @@ export default function Mascot() {
             ),
             -1,
             true
-        );
+          );
         break;
     }
   }, [runningTask?.id, runningTask?.size]);
@@ -140,8 +140,8 @@ export default function Mascot() {
   };
 
   return (
-    <View style={styles.container}>
-      <Animated.Text style={[styles.mascot, animatedStyle]}>
+    <View style={[styles.container, style]}>
+      <Animated.Text style={[styles.mascot, animatedStyle, { fontSize: size }]}>
         {getMascotEmoji()}
       </Animated.Text>
       <View style={styles.bubble}>
@@ -153,33 +153,32 @@ export default function Mascot() {
 
 const styles = StyleSheet.create({
   container: {
-    position: 'absolute',
-    top: 60, // Move to top
-    right: 20,
     alignItems: 'center',
-    zIndex: 10,
+    justifyContent: 'center',
     pointerEvents: 'none',
   },
   mascot: {
-    fontSize: 50,
+    // fontSize handled by prop
   },
   bubble: {
       position: 'absolute',
-      top: -35,
-      right: 40,
+      top: -30,
+      right: 20,
       backgroundColor: '#FFF',
-      paddingHorizontal: 10,
-      paddingVertical: 5,
-      borderRadius: 12,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 10,
       borderBottomRightRadius: 0,
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 1 },
       shadowOpacity: 0.2,
       shadowRadius: 2,
       elevation: 3,
+      minWidth: 60,
+      alignItems: 'center',
   },
   bubbleText: {
-      fontSize: 12,
+      fontSize: 10,
       fontWeight: 'bold',
       color: '#333',
   }

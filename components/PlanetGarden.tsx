@@ -5,8 +5,16 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import { useAudioPlayer } from 'expo-audio';
 import { usePathname } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Modal, PanResponder, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Modal, PanResponder, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import * as THREE from 'three';
+
+const showAlert = (title: string, message: string) => {
+    if (Platform.OS === 'web') {
+        window.alert(`${title}\n${message}`);
+    } else {
+        Alert.alert(title, message);
+    }
+};
 
 // 球面上の位置と回転を計算するヘルパー
 const getPositionOnSphere = (r: number, phi: number, theta: number) => {
@@ -264,6 +272,34 @@ function House({ position, rotation, color }: { position: [number, number, numbe
   );
 }
 
+// ビル（Work用バリエーション）
+function Building({ position, rotation, color }: { position: [number, number, number], rotation: [number, number, number], color: string }) {
+  return (
+    <group position={position} rotation={rotation} scale={[0.6, 0.8, 0.6]}>
+       {/* 本体 */}
+       <mesh position={[0, 0.25, 0]}>
+         <boxGeometry args={[0.2, 0.5, 0.2]} />
+         <meshStandardMaterial color={color} />
+       </mesh>
+       {/* 窓風のライン1 */}
+       <mesh position={[0, 0.15, 0.11]}>
+         <planeGeometry args={[0.15, 0.05]} />
+         <meshStandardMaterial color="#E2E8F0" />
+       </mesh>
+       {/* 窓風のライン2 */}
+       <mesh position={[0, 0.3, 0.11]}>
+         <planeGeometry args={[0.15, 0.05]} />
+         <meshStandardMaterial color="#E2E8F0" />
+       </mesh>
+       {/* 窓風のライン3 */}
+       <mesh position={[0, 0.45, 0.11]}>
+         <planeGeometry args={[0.15, 0.05]} />
+         <meshStandardMaterial color="#E2E8F0" />
+       </mesh>
+    </group>
+  );
+}
+
 // 花（Private用）
 function Flower({ position, rotation }: { position: [number, number, number], rotation: [number, number, number] }) {
   return (
@@ -322,11 +358,14 @@ function PlanetObject({ position, rotation, type, id }: { position: [number, num
   }, [id]);
 
   if (type === 'work') {
-    // Work: 工場(50%) or 家(50%)
-    if (variant % 2 === 0) {
+    // Work: 工場, ビル, 家
+    const workVariant = variant % 3;
+    if (workVariant === 0) {
       return <Factory position={position} rotation={rotation} color="#60A5FA" />;
+    } else if (workVariant === 1) {
+      return <Building position={position} rotation={rotation} color="#94A3B8" />;
     } else {
-      return <House position={position} rotation={rotation} color="#F97316" />;
+      return <House position={position} rotation={rotation} color="#FDBA74" />;
     }
   } else {
     // Private: 木, 花, キノコ
@@ -480,8 +519,10 @@ function StarField() {
   );
 }
 
+// Update destructuring
 export default function PlanetGarden() {
-  const { tasks, shovels, pickaxes, items, useTool, removedDecorationIds, restoreDecoration, debugRemoveDecoration } = useApp();
+  const { tasks, shovels, pickaxes, items, dailyShovelCount, useTool, removedDecorationIds, restoreDecoration, debugRemoveDecoration, isDebugClean } = useApp();
+
   const groupRef = useRef<THREE.Group>(null);
   const isDragging = useRef(false);
   const velocity = useRef({ x: 0, y: 0 });
@@ -489,6 +530,8 @@ export default function PlanetGarden() {
   
   const [selectedDecoration, setSelectedDecoration] = useState<{ id: string, type: string, position: [number, number, number] } | null>(null);
   const [showInventory, setShowInventory] = useState(false);
+  const [dropModalVisible, setDropModalVisible] = useState(false);
+  const [latestDropItem, setLatestDropItem] = useState<{name: string, id: string} | null>(null);
 
   // ... (existing code)
 
@@ -517,17 +560,18 @@ export default function PlanetGarden() {
       if (result.success) {
           // playSE(type); // SE removed
           setSelectedDecoration(null);
-          if (result.droppedItem) {
-              const itemName = result.droppedItem === 'rusty_watch' ? '錆びた時計' : '壊れた機械';
-              Alert.alert('アイテム獲得！', `「${itemName}」を手に入れました！`);
-          }
-      } else {
-          if (toolType === 'pickaxe') {
-              Alert.alert('ピッケルが足りません', '大きなタスクを完了するか、運が良いと手に入ります。');
-          } else {
-              Alert.alert('シャベルが足りません', 'タスクを完了してシャベルを手に入れましょう（1日3回まで）。');
-          }
-      }
+            if (result.droppedItem) {
+                const itemName = result.droppedItem === 'rusty_watch' ? '錆びた時計' : '壊れた機械';
+                setLatestDropItem({ name: itemName, id: result.droppedItem });
+                setDropModalVisible(true);
+            }
+        } else {
+            if (toolType === 'pickaxe') {
+                showAlert('ピッケルが足りません', '大きなタスクを完了するか、運が良いと手に入ります。');
+            } else {
+                showAlert('シャベルが足りません', 'タスクを完了してシャベルを手に入れましょう（1日3回まで）。');
+            }
+        }
   };
 
   // デコレーションの自動生成（復活）ロジック
@@ -564,13 +608,29 @@ export default function PlanetGarden() {
   }, [removedDecorationIds, restoreDecoration]);
 
   const completedTasks = useMemo(() => {
-    return tasks
+    let list = tasks
       .filter(t => t.completed)
-      .slice(-50);
-  }, [tasks]);
+      .slice(-50); // Get last 50 tasks
+
+    if (isDebugClean) {
+        // Add dummy tasks for debug view
+        const dummies = Array.from({ length: 40 }).map((_, i) => ({
+            id: `dummy-${i}`,
+            title: `Dummy Task ${i}`,
+            completed: true,
+            type: (i % 2 === 0 ? 'work' : 'private') as 'work' | 'private',
+            size: 'M' as 'S'|'M'|'L',
+            elapsedTime: 0,
+            isRunning: false
+        }));
+        list = [...list, ...dummies as any];
+    }
+    return list;
+  }, [tasks, isDebugClean]);
 
   // Slot allocation for non-overlapping placement
   const { decorationSlots, taskSlots } = useMemo(() => {
+    // ... (keep existing)
     const total = 150;
     const decCount = 40; 
     const allSlots = Array.from({ length: total }, (_, i) => i);
@@ -594,6 +654,7 @@ export default function PlanetGarden() {
   }, []);
 
   const decorations = useMemo(() => {
+    // ... (keep existing logic)
     return decorationSlots.map((slotIndex) => {
         const { position, rotation } = getFibonacciPosition(slotIndex, 150);
         
@@ -624,9 +685,11 @@ export default function PlanetGarden() {
   }, [completedTasks, taskSlots]);
 
   // 削除されたものを除外
+  // 削除されたものを除外
   const visibleDecorations = useMemo(() => {
+      if (isDebugClean) return [];
       return decorations.filter(d => !removedDecorationIds.includes(d.id));
-  }, [decorations, removedDecorationIds]);
+  }, [decorations, removedDecorationIds, isDebugClean]);
 
   // Sound Effects
   // Sound Effects logic removed as per request
@@ -668,6 +731,9 @@ export default function PlanetGarden() {
     },
   }), []);
 
+
+
+
   return (
     <View style={styles.container} {...panResponder.panHandlers}>
       <BGMPlayer />
@@ -678,6 +744,9 @@ export default function PlanetGarden() {
             <View style={styles.toolContainer}>
                 <Text style={styles.toolText}>Shovels: {shovels}</Text>
                 <Text style={styles.toolText}>Pickaxes: {pickaxes}</Text>
+                <Text style={[styles.toolText, { fontSize: 12, color: '#DDD', marginLeft: 4 }]}>
+                    ({Math.max(0, 3 - (dailyShovelCount || 0))}/3)
+                </Text>
             </View>
             <TouchableOpacity onPress={() => setShowInventory(true)} style={styles.inventoryButton}>
                 <Ionicons name="briefcase" size={20} color="#FFF" />
@@ -745,6 +814,29 @@ export default function PlanetGarden() {
               </TouchableOpacity>
           </View>
       )}
+
+      <Modal visible={dropModalVisible} animationType="fade" transparent>
+          <View style={styles.modalOverlay}>
+              <View style={[styles.modalContent, { alignItems: 'center' }]}>
+                  <Text style={[styles.modalTitle, { color: '#FCD34D', fontSize: 24 }]}>ITEM GET!</Text>
+                  
+                  <View style={styles.dropIconContainer}>
+                      <Text style={{ fontSize: 60 }}>
+                          {latestDropItem?.id === 'rusty_watch' ? '🕰️' : latestDropItem?.id === 'broken_machine' ? '📱' : '❓'}
+                      </Text>
+                  </View>
+                  
+                  <Text style={styles.dropItemName}>{latestDropItem?.name}</Text>
+                  
+                  <TouchableOpacity 
+                    style={[styles.closeButton, { marginTop: 20, width: '100%' }]} 
+                    onPress={() => setDropModalVisible(false)}
+                  >
+                      <Text style={styles.closeButtonText}>OK</Text>
+                  </TouchableOpacity>
+              </View>
+          </View>
+      </Modal>
 
       <Modal visible={showInventory} animationType="slide" transparent>
           <View style={styles.modalOverlay}>
@@ -934,5 +1026,22 @@ const styles = StyleSheet.create({
   closeButtonText: {
       color: '#FFF',
       fontWeight: 'bold',
+  },
+  dropIconContainer: {
+      width: 120,
+      height: 120,
+      backgroundColor: 'rgba(255,255,255,0.1)',
+      borderRadius: 60,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginVertical: 20,
+      borderWidth: 2,
+      borderColor: '#FCD34D',
+  },
+  dropItemName: {
+      color: '#FFF',
+      fontSize: 20,
+      fontWeight: 'bold',
+      textAlign: 'center',
   }
 });

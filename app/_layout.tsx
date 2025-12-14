@@ -1,7 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
@@ -17,6 +17,7 @@ export const unstable_settings = {
 };
 
 import { AppProvider } from '@/context/AppContext';
+import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -30,8 +31,48 @@ LogBox.ignoreLogs([
 
 // ... (imports)
 
+function RootLayoutNav() {
+  const { user, isLoading } = useAuth();
+  const segments = useSegments();
+  const router = useRouter();
+  const colorScheme = useColorScheme(); // Get colorScheme here for ThemeProvider
+
+  useEffect(() => {
+    if (isLoading) return;
+
+    const inAuthGroup = segments[0] === '(auth)';
+
+    if (user && inAuthGroup) {
+      // Redirect to the home page if already logged in
+      router.replace('/(tabs)');
+    }
+  }, [user, isLoading, segments]);
+
+  if (isLoading) {
+      return null; // Or a splash screen
+  }
+
+  return (
+    <SafeAreaProvider>
+      <AppProvider>
+        {/* AppProvider Mounted */}
+        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+          <Stack>
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+
+            <Stack.Screen name="completed" options={{ title: '完了したタスク', headerBackTitle: '戻る' }} />
+            <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
+            <Stack.Screen name="+not-found" />
+          </Stack>
+          <StatusBar style="auto" />
+        </ThemeProvider>
+      </AppProvider>
+    </SafeAreaProvider>
+  );
+}
+
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
   const [loaded] = useFonts({
       ...(Platform.OS === 'web' ? {} : MaterialIcons.font),
   });
@@ -49,19 +90,10 @@ export default function RootLayout() {
   }
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
-        <AppProvider>
-          {/* AppProvider Mounted */}
-          <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-            <Stack>
-              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-              <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-            </Stack>
-            <StatusBar style="auto" />
-          </ThemeProvider>
-        </AppProvider>
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
+    <AuthProvider>
+        <GestureHandlerRootView style={{ flex: 1 }}>
+            <RootLayoutNav />
+        </GestureHandlerRootView>
+    </AuthProvider>
   );
 }
