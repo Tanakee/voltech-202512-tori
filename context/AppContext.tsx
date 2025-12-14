@@ -1,5 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
+import { db } from '../config/firebase';
+import { doc, getDoc, onSnapshot, setDoc, updateDoc } from 'firebase/firestore';
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { Alert } from 'react-native';
 
@@ -54,9 +56,6 @@ interface AppContextType {
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
-
-import { doc, onSnapshot, setDoc } from 'firebase/firestore';
-import { db } from '../config/firebase';
 
 const TASKS_STORAGE_KEY = 'voltech_tasks_v1';
 const USER_DOC_ID = 'demo-user'; // Hardcoded for data sharing demonstration
