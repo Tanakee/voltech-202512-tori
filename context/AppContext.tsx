@@ -74,6 +74,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [items, setItems] = useState<Record<string, number>>({});
   const [dailyShovelCount, setDailyShovelCount] = useState(0);
   const [lastShovelDate, setLastShovelDate] = useState('');
+  const [removedDecorationIds, setRemovedDecorationIds] = useState<string[]>([]);
+
   const restoreDecoration = (id: string) => {
     const newRemovedIds = removedDecorationIds.filter(dId => dId !== id);
     saveData({ 
