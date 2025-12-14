@@ -20,7 +20,7 @@ import { AppProvider } from '@/context/AppContext';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { LogBox } from 'react-native';
+import { LogBox, Platform } from 'react-native';
 
 LogBox.ignoreLogs([
   'THREE.WARNING: Multiple instances of Three.js being imported.',
