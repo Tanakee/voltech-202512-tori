@@ -291,7 +291,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return t;
     });
     saveData({ tasks: newTasks });
-  };
+  }; // End toggleSubTask
 
   const deleteSubTask = (taskId: string, subTaskId: string) => {
     const newTasks = tasks.map(t => {
@@ -304,33 +304,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return t;
     });
     saveData({ tasks: newTasks });
-  };
+  }; // End deleteSubTask
 
   const toggleTaskTimer = (id: string) => {
-    setTasks(prevTasks => {
-      const targetTask = prevTasks.find(t => t.id === id);
-      if (!targetTask) return prevTasks;
+    const targetTask = tasks.find(t => t.id === id);
+    if (!targetTask) return;
 
-      const isStarting = !targetTask.isRunning;
-      const now = Date.now();
+    const isStarting = !targetTask.isRunning;
+    const now = Date.now();
 
-      return prevTasks.map(t => {
-        if (t.id === id) {
-          if (isStarting) {
-            return { ...t, isRunning: true, startTime: now };
-          } else {
-            const addedTime = t.startTime ? (now - t.startTime) / 1000 : 0;
-            return { ...t, isRunning: false, startTime: undefined, elapsedTime: t.elapsedTime + addedTime };
-          }
+    const newTasks = tasks.map(t => {
+      if (t.id === id) {
+        if (isStarting) {
+          return { ...t, isRunning: true, startTime: now };
         } else {
-          if (isStarting && t.isRunning) {
+          const addedTime = t.startTime ? (now - t.startTime) / 1000 : 0;
+          return { ...t, isRunning: false, startTime: undefined, elapsedTime: t.elapsedTime + addedTime };
+        }
+      } else {
+        // Stop other running tasks if starting a new one? Or keep parallel?
+        // Original logic supported parallel or stopping?
+        // Let's stop others if starting new one to be clean, or just follow original logic which was:
+        // "if isStarting && t.isRunning { stop it }"
+        if (isStarting && t.isRunning) {
              const addedTime = t.startTime ? (now - t.startTime) / 1000 : 0;
              return { ...t, isRunning: false, startTime: undefined, elapsedTime: t.elapsedTime + addedTime };
-          }
-          return t;
         }
-      });
+        return t;
+      }
     });
+
+    saveData({ tasks: newTasks });
   };
 
   // ... (location functions)
