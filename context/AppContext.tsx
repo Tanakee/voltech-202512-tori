@@ -55,10 +55,11 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
+import { doc, onSnapshot, setDoc } from 'firebase/firestore';
+import { db } from '../config/firebase';
+
 const TASKS_STORAGE_KEY = 'voltech_tasks_v1';
-const HOME_LOC_KEY = 'voltech_home_loc_v1';
-const WORK_LOC_KEY = 'voltech_work_loc_v1';
-const GARDEN_STORAGE_KEY = 'voltech_garden_data_v1';
+const USER_DOC_ID = 'demo-user'; // Hardcoded for data sharing demonstration
 
 // ... (helper functions)
 
@@ -75,64 +76,63 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [items, setItems] = useState<Record<string, number>>({});
   const [dailyShovelCount, setDailyShovelCount] = useState(0);
   const [lastShovelDate, setLastShovelDate] = useState('');
-  const [removedDecorationIds, setRemovedDecorationIds] = useState<string[]>([]);
-
-  const restoreDecoration = useCallback((id: string) => {
-    setRemovedDecorationIds(prev => prev.filter(dId => dId !== id));
-  }, []);
+  const restoreDecoration = (id: string) => {
+    const newRemovedIds = removedDecorationIds.filter(dId => dId !== id);
+    saveData({ 
+        garden: { 
+            shovels, pickaxes, items, dailyShovelCount, lastShovelDate, 
+            removedDecorationIds: newRemovedIds 
+        } 
+    });
+  };
 
   // Load tasks, locations, and garden data
+  // Sync with Firebase Firestore
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        const storedTasks = await AsyncStorage.getItem(TASKS_STORAGE_KEY);
-        if (storedTasks) setTasks(JSON.parse(storedTasks));
+    const docRef = doc(db, 'users', USER_DOC_ID);
 
-        const storedHome = await AsyncStorage.getItem(HOME_LOC_KEY);
-        if (storedHome) setHomeLocation(JSON.parse(storedHome));
-
-        const storedWork = await AsyncStorage.getItem(WORK_LOC_KEY);
-        if (storedWork) setWorkLocation(JSON.parse(storedWork));
-
-        const storedGarden = await AsyncStorage.getItem(GARDEN_STORAGE_KEY);
-        if (storedGarden) {
-            const gardenData = JSON.parse(storedGarden);
-            setShovels(gardenData.shovels || 0);
-            setPickaxes(gardenData.pickaxes || 0);
-            setItems(gardenData.items || {});
-            setDailyShovelCount(gardenData.dailyShovelCount || 0);
-            setLastShovelDate(gardenData.lastShovelDate || '');
-            setRemovedDecorationIds(gardenData.removedDecorationIds || []);
-        }
-      } catch (e) {
-        console.error('Failed to load data', e);
+    const unsubscribe = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        // Update local state from Firestore data
+        setTasks(data.tasks || []);
+        setHomeLocation(data.homeLocation || null);
+        setWorkLocation(data.workLocation || null);
+        setLowEnergyMode(data.isLowEnergyMode || false);
+        
+        const garden = data.garden || {};
+        setShovels(garden.shovels || 0);
+        setPickaxes(garden.pickaxes || 0);
+        setItems(garden.items || {});
+        setDailyShovelCount(garden.dailyShovelCount || 0);
+        setLastShovelDate(garden.lastShovelDate || '');
+        setRemovedDecorationIds(garden.removedDecorationIds || []);
+      } else {
+        // Create initial document if it doesn't exist
+        setDoc(docRef, {
+            tasks: [],
+            garden: { shovels: 0, pickaxes: 0, items: {}, dailyShovelCount: 0, removedDecorationIds: [] }
+        }, { merge: true });
       }
-    };
-    loadData();
+    }, (error) => {
+        console.error("Firestore sync error:", error);
+    });
+
+    return () => unsubscribe();
   }, []);
 
-  // Save tasks
-  useEffect(() => {
-    if (tasks.length > 0) {
-        AsyncStorage.setItem(TASKS_STORAGE_KEY, JSON.stringify(tasks)).catch(e => console.error(e));
-    }
-  }, [tasks]);
-
-  // Save locations
-  useEffect(() => {
-      if (homeLocation) AsyncStorage.setItem(HOME_LOC_KEY, JSON.stringify(homeLocation)).catch(e => console.error(e));
-      if (workLocation) AsyncStorage.setItem(WORK_LOC_KEY, JSON.stringify(workLocation)).catch(e => console.error(e));
-  }, [homeLocation, workLocation]);
-
-  // Save garden data
-  useEffect(() => {
-      const gardenData = { shovels, pickaxes, items, dailyShovelCount, lastShovelDate, removedDecorationIds };
-      AsyncStorage.setItem(GARDEN_STORAGE_KEY, JSON.stringify(gardenData)).catch(e => console.error(e));
-  }, [shovels, pickaxes, items, dailyShovelCount, lastShovelDate, removedDecorationIds]);
+  // Helper to save data to Firestore
+  const saveData = async (updates: any) => {
+      const docRef = doc(db, 'users', USER_DOC_ID);
+      try {
+          await setDoc(docRef, updates, { merge: true });
+      } catch (e) {
+          console.error("Error saving data:", e);
+      }
+  };
 
   const addTask = (title: string, size: TaskSize) => {
-    // ... (existing addTask)
-    setTasks(prev => [...prev, { 
+    const newTask: Task = { 
       id: Date.now().toString(), 
       title, 
       completed: false, 
@@ -141,41 +141,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       isRunning: false,
       size,
       subTasks: []
-    }]);
+    };
+    saveData({ tasks: [...tasks, newTask] });
   };
 
   const updateTask = (id: string, updates: Partial<Task>) => {
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
+    const newTasks = tasks.map(t => t.id === id ? { ...t, ...updates } : t);
+    saveData({ tasks: newTasks });
   };
 
   const toggleTask = (id: string) => {
-    setTasks(prev => prev.map(t => {
+    let newShovels = shovels;
+    let newPickaxes = pickaxes;
+    let newDailyCount = dailyShovelCount;
+    let newLastDate = lastShovelDate;
+
+    const newTasks = tasks.map(t => {
         if (t.id === id) {
             const isCompleting = !t.completed;
             
             // Tool Grant Logic
             if (isCompleting) {
                 const today = new Date().toDateString();
-                let newDailyCount = dailyShovelCount;
                 
                 // Reset daily count if date changed
-                if (lastShovelDate !== today) {
+                if (newLastDate !== today) {
                     newDailyCount = 0;
-                    setLastShovelDate(today);
-                    setDailyShovelCount(0);
+                    newLastDate = today;
                 }
 
                 // Grant Shovel (Daily limit 3)
                 if (newDailyCount < 3) {
-                    setShovels(s => s + 1);
-                    setDailyShovelCount(newDailyCount + 1);
+                    newShovels++;
+                    newDailyCount++;
                     
                     // Grant Pickaxe (Rare: 5% chance or if task size is 'L')
                     const isLucky = Math.random() < 0.05;
                     const isLarge = t.size === 'L';
                     
                     if (isLarge || isLucky) {
-                        setPickaxes(p => p + 1);
+                        newPickaxes++;
                         Alert.alert('報酬獲得！', 'シャベルとピッケルを手に入れました！');
                     } else {
                         Alert.alert('シャベル獲得！', 'タスク完了報酬としてシャベルを手に入れました。');
@@ -186,51 +191,82 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             return { ...t, completed: !t.completed };
         }
         return t;
-    }));
+    });
+
+    saveData({
+        tasks: newTasks,
+        garden: {
+            shovels: newShovels,
+            pickaxes: newPickaxes,
+            items: items,
+            dailyShovelCount: newDailyCount,
+            lastShovelDate: newLastDate,
+            removedDecorationIds: removedDecorationIds
+        }
+    });
   };
 
   const useTool = (tool: 'shovel' | 'pickaxe', decorationId: string, targetType?: string) => {
+      let success = false;
+      let newShovels = shovels;
+      let newPickaxes = pickaxes;
+      let newRemovedIds = [...removedDecorationIds];
+      let droppedItem: string | null = null;
+      let newItems = { ...items };
+
       if (tool === 'shovel') {
-          if (shovels > 0) {
-              setShovels(s => s - 1);
-              setRemovedDecorationIds(prev => [...prev, decorationId]);
-              return { success: true, droppedItem: null };
+          if (newShovels > 0) {
+              newShovels--;
+              newRemovedIds.push(decorationId);
+              success = true;
           }
       } else if (tool === 'pickaxe') {
-          if (pickaxes > 0) {
-              setPickaxes(p => p - 1);
-              setRemovedDecorationIds(prev => [...prev, decorationId]);
-              
+          if (newPickaxes > 0) {
+              newPickaxes--;
+              newRemovedIds.push(decorationId);
+              success = true;
+
               // Drop Logic
-              let droppedItem = null;
-              if (targetType === 'crystal') {
-                  const itemsList = ['rusty_watch', 'broken_machine'];
-                  droppedItem = itemsList[Math.floor(Math.random() * itemsList.length)];
-                  
-                  setItems(prev => ({
-                      ...prev,
-                      [droppedItem]: (prev[droppedItem] || 0) + 1
-                  }));
+              if (targetType === 'crystal' || targetType === 'rock') {
+                   // Simple random drop chance
+                  const dropRand = Math.random();
+                  if (dropRand < 0.3) {
+                      droppedItem = Math.random() < 0.5 ? 'rusty_watch' : 'broken_machine';
+                      newItems[droppedItem] = (newItems[droppedItem] || 0) + 1;
+                  }
               }
-              
-              return { success: true, droppedItem };
           }
       }
-      return { success: false, droppedItem: null };
+
+      if (success) {
+          saveData({
+              garden: {
+                  shovels: newShovels,
+                  pickaxes: newPickaxes,
+                  items: newItems,
+                  dailyShovelCount: dailyShovelCount,
+                  lastShovelDate: lastShovelDate,
+                  removedDecorationIds: newRemovedIds
+              }
+          });
+      }
+      return { success, droppedItem };
   };
 
   // ... (existing functions: deleteTask, deleteCompletedTasks, etc.)
 
   const deleteTask = (id: string) => {
-    setTasks(prev => prev.filter(t => t.id !== id));
+    const newTasks = tasks.filter(t => t.id !== id);
+    saveData({ tasks: newTasks });
   };
 
   const deleteCompletedTasks = () => {
-      setTasks(prev => prev.filter(t => !t.completed));
+      const newTasks = tasks.filter(t => !t.completed);
+      saveData({ tasks: newTasks });
   };
 
   const addSubTask = (taskId: string, title: string) => {
-    setTasks(prev => prev.map(t => {
+    const newTasks = tasks.map(t => {
       if (t.id === taskId) {
         const newSubTask: SubTask = {
           id: Date.now().toString() + Math.random().toString(36).slice(2, 9),
@@ -240,11 +276,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return { ...t, subTasks: [...(t.subTasks || []), newSubTask] };
       }
       return t;
-    }));
+    });
+    saveData({ tasks: newTasks });
   };
 
   const toggleSubTask = (taskId: string, subTaskId: string) => {
-    setTasks(prev => prev.map(t => {
+  const toggleSubTask = (taskId: string, subTaskId: string) => {
+    const newTasks = tasks.map(t => {
       if (t.id === taskId) {
         return {
           ...t,
@@ -254,11 +292,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         };
       }
       return t;
-    }));
+    });
+    saveData({ tasks: newTasks });
   };
 
   const deleteSubTask = (taskId: string, subTaskId: string) => {
-    setTasks(prev => prev.map(t => {
+    const newTasks = tasks.map(t => {
       if (t.id === taskId) {
         return {
           ...t,
@@ -266,7 +305,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         };
       }
       return t;
-    }));
+    });
+    saveData({ tasks: newTasks });
   };
 
   const toggleTaskTimer = (id: string) => {
@@ -308,10 +348,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         const loc = await Location.getCurrentPositionAsync({});
         if (type === 'home') {
-            setHomeLocation(loc);
+            saveData({ homeLocation: loc });
             Alert.alert('完了', '現在地を「自宅」として登録しました。');
         } else {
-            setWorkLocation(loc);
+            saveData({ workLocation: loc });
             Alert.alert('完了', '現在地を「職場」として登録しました。');
         }
       } catch (e) {
@@ -371,12 +411,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const clearAllTasks = async () => {
-      setTasks([]);
-      try {
-          await AsyncStorage.removeItem(TASKS_STORAGE_KEY);
-      } catch (e) {
-          console.error('Failed to clear tasks', e);
-      }
+      saveData({ tasks: [] });
   };
 
   useEffect(() => {
@@ -385,9 +420,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
 
 
-  const debugRemoveDecoration = useCallback((id: string) => {
-    setRemovedDecorationIds(prev => [...prev, id]);
-  }, []);
+  const debugRemoveDecoration = (id: string) => {
+    const newRemovedIds = [...removedDecorationIds, id];
+    saveData({ 
+        garden: { 
+            shovels, pickaxes, items, dailyShovelCount, lastShovelDate, 
+            removedDecorationIds: newRemovedIds 
+        } 
+    });
+  };
 
   return (
     <AppContext.Provider value={{
