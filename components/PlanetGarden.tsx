@@ -3,7 +3,6 @@ import { useApp } from '@/context/AppContext';
 import { Ionicons } from '@expo/vector-icons';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { useAudioPlayer } from 'expo-audio';
-import { Audio } from 'expo-av';
 import { usePathname } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, PanResponder, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -213,13 +212,14 @@ function Mascot() {
       {/* Body */}
       <mesh position={[0, 0.2, 0]}>
         <sphereGeometry args={[0.15, 16, 16]} />
-        <meshStandardMaterial color={color} />
+        <meshStandardMaterial color="white" />
       </mesh>
       {/* Head */}
       <mesh position={[0, 0.4, 0]}>
         <sphereGeometry args={[0.1, 16, 16]} />
         <meshStandardMaterial color="white" />
       </mesh>
+      
       {/* Eyes */}
       <mesh position={[0.05, 0.42, 0.08]}>
         <sphereGeometry args={[0.02, 8, 8]} />
@@ -233,6 +233,16 @@ function Mascot() {
       <mesh position={[0, 0.38, 0.1]} rotation={[0.5, 0, 0]}>
          <coneGeometry args={[0.02, 0.05, 8]} />
          <meshStandardMaterial color="orange" />
+      </mesh>
+
+      {/* Arms (Branches) */}
+      <mesh position={[0.15, 0.25, 0]} rotation={[0, 0, -0.5]}>
+         <cylinderGeometry args={[0.01, 0.01, 0.15, 8]} />
+         <meshStandardMaterial color="#8B4513" />
+      </mesh>
+      <mesh position={[-0.15, 0.25, 0]} rotation={[0, 0, 0.5]}>
+         <cylinderGeometry args={[0.01, 0.01, 0.15, 8]} />
+         <meshStandardMaterial color="#8B4513" />
       </mesh>
     </group>
   );
@@ -488,10 +498,10 @@ export default function PlanetGarden() {
       const { id, type } = selectedDecoration;
       
       // DEBUG: Force remove without tools
-      const debugMode = true;
+      const debugMode = false;
 
       if (debugMode) {
-          playSE(type);
+          // playSE(type); // SE removed
           setSelectedDecoration(null);
           debugRemoveDecoration(id);
           return;
@@ -505,7 +515,7 @@ export default function PlanetGarden() {
       const result = useTool(toolType, id, type);
       
       if (result.success) {
-          playSE(type); // Play Sound Effect
+          // playSE(type); // SE removed
           setSelectedDecoration(null);
           if (result.droppedItem) {
               const itemName = result.droppedItem === 'rusty_watch' ? '錆びた時計' : '壊れた機械';
@@ -619,56 +629,7 @@ export default function PlanetGarden() {
   }, [decorations, removedDecorationIds]);
 
   // Sound Effects
-  const [soundEffect, setSoundEffect] = useState<Audio.Sound | null>(null);
-
-  useEffect(() => {
-      async function loadSound() {
-          try {
-              // Pre-load the single reliable sound file
-              const { sound } = await Audio.Sound.createAsync(
-                  { uri: 'https://actions.google.com/sounds/v1/impacts/crash.ogg' }
-              );
-              setSoundEffect(sound);
-          } catch (e) {
-              console.log('Error loading SE', e);
-          }
-      }
-      loadSound();
-
-      return () => {
-          soundEffect?.unloadAsync();
-      };
-  }, []);
-
-  const playSE = async (type: string) => {
-      if (!soundEffect) return;
-
-      let rate = 1.0;
-      let volume = 1.0;
-
-      // Adjust pitch/rate to simulate different materials
-      // This is a fallback strategy to ensure reliable playback
-      if (type === 'weed') {
-          rate = 0.5; // Lower pitch for digging
-          volume = 0.8;
-      } else if (type === 'rock') {
-          rate = 1.0; // Normal pitch
-          volume = 1.0;
-      } else if (type === 'crystal') {
-          rate = 2.0; // Higher pitch for glass
-          volume = 0.6;
-      }
-
-      try {
-          // Reset and play immediately with new settings
-          await soundEffect.stopAsync();
-          await soundEffect.setRateAsync(rate, true);
-          await soundEffect.setVolumeAsync(volume);
-          await soundEffect.replayAsync();
-      } catch (e) {
-          console.log('Error playing SE', e);
-      }
-  };
+  // Sound Effects logic removed as per request
 
   const handleDecorationClick = (id: string, type: string, position: [number, number, number]) => {
       setSelectedDecoration({ id, type, position });
