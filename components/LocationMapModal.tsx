@@ -1,3 +1,4 @@
+import { Colors } from '@/constants/theme';
 import { useApp } from '@/context/AppContext';
 import { X } from 'lucide-react-native';
 import React from 'react';
@@ -50,7 +51,7 @@ export default function LocationMapModal({ visible, onClose }: LocationMapModalP
                     }}
                     title="自宅"
                     description="プライベートモードへの切り替え地点"
-                    pinColor="green"
+                    pinColor={Colors.private.primary}
                 />
                 <Circle 
                     center={{
@@ -58,8 +59,8 @@ export default function LocationMapModal({ visible, onClose }: LocationMapModalP
                         longitude: homeLocation.coords.longitude
                     }}
                     radius={100}
-                    fillColor="rgba(74, 222, 128, 0.2)"
-                    strokeColor="rgba(74, 222, 128, 0.5)"
+                    fillColor={`${Colors.private.primary}33`} // 20% opacity
+                    strokeColor={`${Colors.private.primary}80`} // 50% opacity
                 />
             </>
           )}
@@ -72,7 +73,7 @@ export default function LocationMapModal({ visible, onClose }: LocationMapModalP
                     }}
                     title="職場"
                     description="仕事モードへの切り替え地点"
-                    pinColor="blue"
+                    pinColor={Colors.work.primary}
                 />
                 <Circle 
                     center={{
@@ -80,8 +81,8 @@ export default function LocationMapModal({ visible, onClose }: LocationMapModalP
                         longitude: workLocation.coords.longitude
                     }}
                     radius={100}
-                    fillColor="rgba(96, 165, 250, 0.2)"
-                    strokeColor="rgba(96, 165, 250, 0.5)"
+                    fillColor={`${Colors.work.primary}33`} // 20% opacity
+                    strokeColor={`${Colors.work.primary}80`} // 50% opacity
                 />
             </>
           )}
@@ -89,11 +90,11 @@ export default function LocationMapModal({ visible, onClose }: LocationMapModalP
 
         <View style={styles.footer}>
             <View style={styles.legendItem}>
-                <View style={[styles.dot, { backgroundColor: 'green' }]} />
+                <View style={[styles.dot, { backgroundColor: Colors.private.primary }]} />
                 <Text>自宅 (半径100m)</Text>
             </View>
             <View style={styles.legendItem}>
-                <View style={[styles.dot, { backgroundColor: 'blue' }]} />
+                <View style={[styles.dot, { backgroundColor: Colors.work.primary }]} />
                 <Text>職場 (半径100m)</Text>
             </View>
         </View>

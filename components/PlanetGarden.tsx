@@ -1,3 +1,4 @@
+import { Colors } from '@/constants/theme';
 import { useApp } from '@/context/AppContext';
 import { Ionicons } from '@expo/vector-icons';
 import { Canvas, useFrame } from '@react-three/fiber';
@@ -146,6 +147,92 @@ function Factory({ position, rotation, color }: { position: [number, number, num
       <mesh position={[0.08, 0.1, 0.105]}>
          <planeGeometry args={[0.05, 0.08]} />
          <meshStandardMaterial color="#FDE047" emissive="#FDE047" emissiveIntensity={0.5} />
+      </mesh>
+    </group>
+  );
+}
+
+// マスコットキャラクター
+function Mascot() {
+  const { mode } = useApp();
+  const groupRef = useRef<THREE.Group>(null);
+  const color = mode === 'work' ? Colors.work.primary : Colors.private.primary;
+  
+  // 現在の位置（球座標）
+  const pos = useRef({ phi: Math.PI / 2, theta: 0 });
+  // 目標位置
+  const target = useRef({ phi: Math.PI / 2, theta: 0 });
+  // 待機時間
+  const waitTime = useRef(0);
+
+  useFrame((state, delta) => {
+    if (!groupRef.current) return;
+
+    if (waitTime.current > 0) {
+      waitTime.current -= delta;
+      
+      // 待機中に少し上下に揺れる（アイドリング）
+      const bounce = Math.sin(state.clock.elapsedTime * 6) * 0.02;
+      groupRef.current.children[0].position.y = 0.2 + bounce; 
+      return;
+    }
+
+    // 目標に近づく
+    let speed = 0.5 * delta;
+    const diffPhi = target.current.phi - pos.current.phi;
+    const diffTheta = target.current.theta - pos.current.theta;
+    const dist = Math.sqrt(diffPhi * diffPhi + diffTheta * diffTheta);
+
+    if (dist < 0.05) {
+      // 目標到達 -> 次の目標を設定
+      target.current.phi = Math.acos(2 * Math.random() - 1); 
+      target.current.theta = Math.random() * Math.PI * 2; 
+      waitTime.current = Math.random() * 3 + 2; 
+    } else {
+      // 移動
+      pos.current.phi += (diffPhi / dist) * speed;
+      pos.current.theta += (diffTheta / dist) * speed;
+
+      // 歩行アニメーション（左右に揺れる）
+      const wobble = Math.sin(state.clock.elapsedTime * 15) * 0.05;
+      groupRef.current.rotation.z = wobble;
+      
+      // ジャンプ移動
+      const hop = Math.abs(Math.sin(state.clock.elapsedTime * 10)) * 0.1;
+      groupRef.current.children[0].position.y = 0.2 + hop;
+    }
+
+    // 座標更新
+    const { position, rotation } = getPositionOnSphere(1.93, pos.current.phi, pos.current.theta);
+    groupRef.current.position.set(position[0], position[1], position[2]);
+    groupRef.current.rotation.set(rotation[0], rotation[1], rotation[2]);
+  });
+
+  return (
+    <group ref={groupRef}>
+      {/* Body */}
+      <mesh position={[0, 0.2, 0]}>
+        <sphereGeometry args={[0.15, 16, 16]} />
+        <meshStandardMaterial color={color} />
+      </mesh>
+      {/* Head */}
+      <mesh position={[0, 0.4, 0]}>
+        <sphereGeometry args={[0.1, 16, 16]} />
+        <meshStandardMaterial color="white" />
+      </mesh>
+      {/* Eyes */}
+      <mesh position={[0.05, 0.42, 0.08]}>
+        <sphereGeometry args={[0.02, 8, 8]} />
+        <meshStandardMaterial color="black" />
+      </mesh>
+      <mesh position={[-0.05, 0.42, 0.08]}>
+        <sphereGeometry args={[0.02, 8, 8]} />
+        <meshStandardMaterial color="black" />
+      </mesh>
+      {/* Beak */}
+      <mesh position={[0, 0.38, 0.1]} rotation={[0.5, 0, 0]}>
+         <coneGeometry args={[0.02, 0.05, 8]} />
+         <meshStandardMaterial color="orange" />
       </mesh>
     </group>
   );
@@ -649,6 +736,9 @@ export default function PlanetGarden() {
             <icosahedronGeometry args={[2, 3]} />
             <meshStandardMaterial color="#4ADE80" flatShading roughness={0.8} />
           </mesh>
+
+          {/* Add Mascot */}
+          <Mascot />
 
           {visibleDecorations.map((item) => {
               if (item.type === 'crystal') {
