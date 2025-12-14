@@ -120,14 +120,14 @@ export default function Mascot() {
   });
 
   const getMascotEmoji = () => {
-    if (!runningTask) return '🐦'; // Idle bird
+    if (!runningTask) return '⛄'; // Idle snowman
     
     switch (runningTask.size) {
-      case 'S': return '🚀'; // Rocket/Fast bird for S
-      case 'M': return '🦅'; // Eagle for M
-      case 'L': return '🚁'; // Helicopter/Heavy lifter for L
+      case 'S': return '⛄'; // Fast snowman
+      case 'M': return '⛄'; // Steady snowman
+      case 'L': return '⛄'; // Heavy snowman
     }
-    return '🕊️';
+    return '⛄';
   };
 
   const getStatusText = () => {

@@ -1,8 +1,11 @@
+import { Colors } from '@/constants/theme';
 import { useApp } from '@/context/AppContext';
 import { Ionicons } from '@expo/vector-icons';
 import { Canvas, useFrame } from '@react-three/fiber';
-import React, { useMemo, useRef, useState } from 'react';
-import { Alert, Modal, PanResponder, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useAudioPlayer } from 'expo-audio';
+import { usePathname } from 'expo-router';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Modal, PanResponder, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import * as THREE from 'three';
 
 // 球面上の位置と回転を計算するヘルパー
@@ -21,6 +24,48 @@ const getPositionOnSphere = (r: number, phi: number, theta: number) => {
     rotation: [euler.x, euler.y, euler.z] as [number, number, number],
   };
 };
+
+const getFibonacciPosition = (index: number, total: number) => {
+  const phi = Math.acos(1 - 2 * (index + 0.5) / total);
+  const theta = Math.PI * (1 + Math.sqrt(5)) * index;
+  return getPositionOnSphere(1.93, phi, theta);
+};
+
+function BGMPlayer() {
+  // Using a reliable direct MP3 link for royalty-free ambient music
+  // Source: Kevin MacLeod - "Music for Manatees" (incompetech.com)
+  // Licensed under Creative Commons: By Attribution 4.0 License
+  const player = useAudioPlayer('https://incompetech.com/music/royalty-free/mp3-royaltyfree/Music%20for%20Manatees.mp3');
+  const pathname = usePathname();
+  const isFocused = pathname === '/planet';
+  const [shouldPlay, setShouldPlay] = useState(true);
+
+  useEffect(() => {
+    if (player) {
+        player.loop = true;
+        player.volume = 0.3;
+        
+        if (isFocused && shouldPlay) {
+            player.play();
+        } else {
+            player.pause();
+        }
+    }
+  }, [player, isFocused, shouldPlay]);
+
+  const toggleSound = () => {
+      setShouldPlay(prev => !prev);
+  };
+
+  return (
+      <TouchableOpacity 
+        style={styles.bgmButton} 
+        onPress={toggleSound}
+      >
+          <Ionicons name={shouldPlay ? "volume-high" : "volume-mute"} size={20} color="#FFF" />
+      </TouchableOpacity>
+  );
+}
 
 // 木（Private用）
 function PlanetTree({ position, rotation, color }: { position: [number, number, number], rotation: [number, number, number], color: string }) {
@@ -101,6 +146,103 @@ function Factory({ position, rotation, color }: { position: [number, number, num
       <mesh position={[0.08, 0.1, 0.105]}>
          <planeGeometry args={[0.05, 0.08]} />
          <meshStandardMaterial color="#FDE047" emissive="#FDE047" emissiveIntensity={0.5} />
+      </mesh>
+    </group>
+  );
+}
+
+// マスコットキャラクター
+function Mascot() {
+  const { mode } = useApp();
+  const groupRef = useRef<THREE.Group>(null);
+  const color = mode === 'work' ? Colors.work.primary : Colors.private.primary;
+  
+  // 現在の位置（球座標）
+  const pos = useRef({ phi: Math.PI / 2, theta: 0 });
+  // 目標位置
+  const target = useRef({ phi: Math.PI / 2, theta: 0 });
+  // 待機時間
+  const waitTime = useRef(0);
+
+  useFrame((state, delta) => {
+    if (!groupRef.current) return;
+
+    if (waitTime.current > 0) {
+      waitTime.current -= delta;
+      
+      // 待機中に少し上下に揺れる（アイドリング）
+      const bounce = Math.sin(state.clock.elapsedTime * 6) * 0.02;
+      groupRef.current.children[0].position.y = 0.2 + bounce; 
+      return;
+    }
+
+    // 目標に近づく
+    let speed = 0.5 * delta;
+    const diffPhi = target.current.phi - pos.current.phi;
+    const diffTheta = target.current.theta - pos.current.theta;
+    const dist = Math.sqrt(diffPhi * diffPhi + diffTheta * diffTheta);
+
+    if (dist < 0.05) {
+      // 目標到達 -> 次の目標を設定
+      target.current.phi = Math.acos(2 * Math.random() - 1); 
+      target.current.theta = Math.random() * Math.PI * 2; 
+      waitTime.current = Math.random() * 3 + 2; 
+    } else {
+      // 移動
+      pos.current.phi += (diffPhi / dist) * speed;
+      pos.current.theta += (diffTheta / dist) * speed;
+
+      // 歩行アニメーション（左右に揺れる）
+      const wobble = Math.sin(state.clock.elapsedTime * 15) * 0.05;
+      groupRef.current.rotation.z = wobble;
+      
+      // ジャンプ移動
+      const hop = Math.abs(Math.sin(state.clock.elapsedTime * 10)) * 0.1;
+      groupRef.current.children[0].position.y = 0.2 + hop;
+    }
+
+    // 座標更新
+    const { position, rotation } = getPositionOnSphere(1.93, pos.current.phi, pos.current.theta);
+    groupRef.current.position.set(position[0], position[1], position[2]);
+    groupRef.current.rotation.set(rotation[0], rotation[1], rotation[2]);
+  });
+
+  return (
+    <group ref={groupRef}>
+      {/* Body */}
+      <mesh position={[0, 0.2, 0]}>
+        <sphereGeometry args={[0.15, 16, 16]} />
+        <meshStandardMaterial color="white" />
+      </mesh>
+      {/* Head */}
+      <mesh position={[0, 0.4, 0]}>
+        <sphereGeometry args={[0.1, 16, 16]} />
+        <meshStandardMaterial color="white" />
+      </mesh>
+      
+      {/* Eyes */}
+      <mesh position={[0.05, 0.42, 0.08]}>
+        <sphereGeometry args={[0.02, 8, 8]} />
+        <meshStandardMaterial color="black" />
+      </mesh>
+      <mesh position={[-0.05, 0.42, 0.08]}>
+        <sphereGeometry args={[0.02, 8, 8]} />
+        <meshStandardMaterial color="black" />
+      </mesh>
+      {/* Beak */}
+      <mesh position={[0, 0.38, 0.1]} rotation={[0.5, 0, 0]}>
+         <coneGeometry args={[0.02, 0.05, 8]} />
+         <meshStandardMaterial color="orange" />
+      </mesh>
+
+      {/* Arms (Branches) */}
+      <mesh position={[0.15, 0.25, 0]} rotation={[0, 0, -0.5]}>
+         <cylinderGeometry args={[0.01, 0.01, 0.15, 8]} />
+         <meshStandardMaterial color="#8B4513" />
+      </mesh>
+      <mesh position={[-0.15, 0.25, 0]} rotation={[0, 0, 0.5]}>
+         <cylinderGeometry args={[0.01, 0.01, 0.15, 8]} />
+         <meshStandardMaterial color="#8B4513" />
       </mesh>
     </group>
   );
@@ -203,6 +345,11 @@ function PlanetObject({ position, rotation, type, id }: { position: [number, num
 function Rock({ position, rotation, onClick }: { position: [number, number, number], rotation: [number, number, number], onClick: () => void }) {
   return (
     <group position={position} rotation={rotation} scale={[0.5, 0.5, 0.5]} onClick={(e) => { e.stopPropagation(); onClick(); }}>
+      {/* Hitbox */}
+      <mesh visible={false}>
+          <boxGeometry args={[0.5, 0.5, 0.5]} />
+          <meshBasicMaterial transparent opacity={0} />
+      </mesh>
       <mesh position={[0, 0.1, 0]}>
         <dodecahedronGeometry args={[0.15, 0]} />
         <meshStandardMaterial color="#64748B" flatShading />
@@ -215,8 +362,13 @@ function Rock({ position, rotation, onClick }: { position: [number, number, numb
 function Weed({ position, rotation, onClick }: { position: [number, number, number], rotation: [number, number, number], onClick: () => void }) {
   return (
     <group position={position} rotation={rotation} scale={[0.5, 0.5, 0.5]} onClick={(e) => { e.stopPropagation(); onClick(); }}>
+      {/* Hitbox */}
+      <mesh visible={false} position={[0, 0.15, 0]}>
+          <boxGeometry args={[0.4, 0.4, 0.4]} />
+          <meshBasicMaterial transparent opacity={0} />
+      </mesh>
       {[...Array(3)].map((_, i) => (
-         <mesh key={i} position={[0, 0, 0]} rotation={[0, (i * Math.PI * 2) / 3, Math.PI / 6]}>
+         <mesh key={i} position={[0, 0.1, 0]} rotation={[0, (i * Math.PI * 2) / 3, Math.PI / 6]}>
             <planeGeometry args={[0.1, 0.3]} />
             <meshStandardMaterial color="#86EFAC" side={THREE.DoubleSide} />
          </mesh>
@@ -228,6 +380,11 @@ function Weed({ position, rotation, onClick }: { position: [number, number, numb
 function CrystalCluster({ position, rotation, onClick }: { position: [number, number, number], rotation: [number, number, number], onClick?: () => void }) {
   return (
     <group position={position} rotation={rotation} scale={[0.6, 0.6, 0.6]} onClick={(e) => { e.stopPropagation(); onClick?.(); }}>
+      {/* Hitbox */}
+      <mesh visible={false} position={[0, 0.3, 0]}>
+          <cylinderGeometry args={[0.3, 0.3, 0.8, 8]} />
+          <meshBasicMaterial transparent opacity={0} />
+      </mesh>
       <mesh position={[0, 0.3, 0]}>
         <cylinderGeometry args={[0, 0.15, 0.8, 4]} />
         <meshStandardMaterial color="#A78BFA" emissive="#7C3AED" emissiveIntensity={0.5} roughness={0.1} />
@@ -324,7 +481,7 @@ function StarField() {
 }
 
 export default function PlanetGarden() {
-  const { tasks, shovels, pickaxes, items, useTool, removedDecorationIds } = useApp();
+  const { tasks, shovels, pickaxes, items, useTool, removedDecorationIds, restoreDecoration, debugRemoveDecoration } = useApp();
   const groupRef = useRef<THREE.Group>(null);
   const isDragging = useRef(false);
   const velocity = useRef({ x: 0, y: 0 });
@@ -333,71 +490,23 @@ export default function PlanetGarden() {
   const [selectedDecoration, setSelectedDecoration] = useState<{ id: string, type: string, position: [number, number, number] } | null>(null);
   const [showInventory, setShowInventory] = useState(false);
 
-  const completedTasks = useMemo(() => {
-    return tasks
-      .filter(t => t.completed)
-      .slice(-50);
-  }, [tasks]);
-
-  const objects = useMemo(() => {
-    const count = completedTasks.length;
-    return completedTasks.map((task, index) => {
-      const phi = Math.acos(1 - 2 * (index + 0.5) / count);
-      const theta = Math.PI * (1 + Math.sqrt(5)) * (index + 0.5);
-      return {
-        id: task.id,
-        ...getPositionOnSphere(1.93, phi, theta),
-        type: task.type
-      };
-    });
-  }, [completedTasks]);
-
-  // 固定の装飾（クリスタル、岩、雑草）
-  const decorations = useMemo(() => {
-    const items = [];
-    
-    // クリスタル (2箇所)
-    items.push({ id: 'crystal-1', type: 'crystal', ...getPositionOnSphere(1.9, Math.PI / 4, 0) });
-    items.push({ id: 'crystal-2', type: 'crystal', ...getPositionOnSphere(1.9, Math.PI / 1.5, Math.PI) });
-
-    // 岩 (10個) - 固定シードで配置
-    for (let i = 0; i < 10; i++) {
-        const phi = Math.acos(1 - 2 * (i + 0.5) / 10); 
-        const theta = Math.PI * (1 + Math.sqrt(5)) * (i + 0.5) + 1; 
-        items.push({ 
-            id: `rock-${i}`,
-            type: 'rock', 
-            ...getPositionOnSphere(1.95, phi, theta) 
-        });
-    }
-
-    // 雑草 (10個)
-    for (let i = 0; i < 10; i++) {
-        const phi = Math.acos(1 - 2 * (i + 0.5) / 10);
-        const theta = Math.PI * (1 + Math.sqrt(5)) * (i + 0.5) + 2;
-        items.push({
-            id: `weed-${i}`,
-            type: 'weed',
-            ...getPositionOnSphere(1.95, phi, theta)
-        });
-    }
-
-    return items;
-  }, []);
-
-  // 削除されたものを除外
-  const visibleDecorations = useMemo(() => {
-      return decorations.filter(d => !removedDecorationIds.includes(d.id));
-  }, [decorations, removedDecorationIds]);
-
-  const handleDecorationClick = (id: string, type: string, position: [number, number, number]) => {
-      setSelectedDecoration({ id, type, position });
-  };
+  // ... (existing code)
 
   const handleRemove = () => {
       if (!selectedDecoration) return;
 
       const { id, type } = selectedDecoration;
+      
+      // DEBUG: Force remove without tools
+      const debugMode = false;
+
+      if (debugMode) {
+          // playSE(type); // SE removed
+          setSelectedDecoration(null);
+          debugRemoveDecoration(id);
+          return;
+      }
+      
       let toolType: 'shovel' | 'pickaxe' = 'shovel';
       if (type === 'rock' || type === 'crystal') {
           toolType = 'pickaxe';
@@ -406,6 +515,7 @@ export default function PlanetGarden() {
       const result = useTool(toolType, id, type);
       
       if (result.success) {
+          // playSE(type); // SE removed
           setSelectedDecoration(null);
           if (result.droppedItem) {
               const itemName = result.droppedItem === 'rusty_watch' ? '錆びた時計' : '壊れた機械';
@@ -419,6 +529,113 @@ export default function PlanetGarden() {
           }
       }
   };
+
+  // デコレーションの自動生成（復活）ロジック
+  // 雑草(70%) > 岩(25%) > クリスタル(5%)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // 削除済みのアイテムを取得
+      const removedItems = decorations.filter(d => removedDecorationIds.includes(d.id));
+      
+      if (removedItems.length === 0) return;
+
+      // 確率に基づいて復活させるタイプを決定
+      const rand = Math.random();
+      let targetType = 'weed';
+      if (rand > 0.95) {
+          targetType = 'crystal'; // 5%
+      } else if (rand > 0.7) {
+          targetType = 'rock'; // 25%
+      } else {
+          targetType = 'weed'; // 70%
+      }
+
+      // ターゲットタイプの削除済みアイテム候補
+      const candidates = removedItems.filter(d => d.type === targetType);
+
+      if (candidates.length > 0) {
+        // ランダムに1つ選んで復活
+        const toRestore = candidates[Math.floor(Math.random() * candidates.length)];
+        restoreDecoration(toRestore.id);
+      }
+    }, 28800000); // 8時間ごとに判定
+
+    return () => clearInterval(interval);
+  }, [removedDecorationIds, restoreDecoration]);
+
+  const completedTasks = useMemo(() => {
+    return tasks
+      .filter(t => t.completed)
+      .slice(-50);
+  }, [tasks]);
+
+  // Slot allocation for non-overlapping placement
+  const { decorationSlots, taskSlots } = useMemo(() => {
+    const total = 150;
+    const decCount = 40; 
+    const allSlots = Array.from({ length: total }, (_, i) => i);
+    
+    // Seeded shuffle
+    let seed = 999;
+    const random = () => {
+        const x = Math.sin(seed++) * 10000;
+        return x - Math.floor(x);
+    };
+
+    for (let i = allSlots.length - 1; i > 0; i--) {
+        const j = Math.floor(random() * (i + 1));
+        [allSlots[i], allSlots[j]] = [allSlots[j], allSlots[i]];
+    }
+
+    return {
+        decorationSlots: allSlots.slice(0, decCount),
+        taskSlots: allSlots.slice(decCount)
+    };
+  }, []);
+
+  const decorations = useMemo(() => {
+    return decorationSlots.map((slotIndex) => {
+        const { position, rotation } = getFibonacciPosition(slotIndex, 150);
+        
+        // Determine type based on slotIndex (pseudo-random)
+        const typeRand = (slotIndex * 123.45) % 1; 
+        let type = 'weed';
+        if (typeRand > 0.9) type = 'crystal';
+        else if (typeRand > 0.6) type = 'rock';
+        
+        return {
+            id: `dec-${slotIndex}`,
+            position,
+            rotation,
+            type
+        };
+    });
+  }, [decorationSlots]);
+
+  const objects = useMemo(() => {
+    return completedTasks.map((task, i) => {
+      const slotIndex = taskSlots[i % taskSlots.length];
+      return {
+        id: task.id,
+        ...getFibonacciPosition(slotIndex, 150),
+        type: task.type
+      };
+    });
+  }, [completedTasks, taskSlots]);
+
+  // 削除されたものを除外
+  const visibleDecorations = useMemo(() => {
+      return decorations.filter(d => !removedDecorationIds.includes(d.id));
+  }, [decorations, removedDecorationIds]);
+
+  // Sound Effects
+  // Sound Effects logic removed as per request
+
+  const handleDecorationClick = (id: string, type: string, position: [number, number, number]) => {
+      setSelectedDecoration({ id, type, position });
+  };
+
+
 
   const panResponder = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
@@ -453,6 +670,7 @@ export default function PlanetGarden() {
 
   return (
     <View style={styles.container} {...panResponder.panHandlers}>
+      <BGMPlayer />
       <View style={styles.header}>
         <Text style={styles.title}>Your Planet</Text>
         <Text style={styles.subtitle}>{completedTasks.length} objects built</Text>
@@ -479,6 +697,9 @@ export default function PlanetGarden() {
             <icosahedronGeometry args={[2, 3]} />
             <meshStandardMaterial color="#4ADE80" flatShading roughness={0.8} />
           </mesh>
+
+          {/* Add Mascot */}
+          <Mascot />
 
           {visibleDecorations.map((item) => {
               if (item.type === 'crystal') {
@@ -562,6 +783,18 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000000',
+  },
+  bgmButton: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 20,
   },
   header: {
       position: 'absolute',
