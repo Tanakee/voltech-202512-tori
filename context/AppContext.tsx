@@ -1,11 +1,21 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { Alert } from 'react-native';
+import { Alert, Platform } from 'react-native';
 import { db } from '../config/firebase';
+import { useAuth } from './AuthContext';
 
 export type Mode = 'work' | 'private';
 export type TaskSize = 'S' | 'M' | 'L';
+
+const showAlert = (title: string, message: string) => {
+    if (Platform.OS === 'web') {
+        window.alert(`${title}\n${message}`);
+    } else {
+        Alert.alert(title, message);
+    }
+};
 
 export interface SubTask {
   id: string;
@@ -48,20 +58,25 @@ interface AppContextType {
   shovels: number;
   pickaxes: number;
   items: Record<string, number>;
+  dailyShovelCount: number;
   useTool: (tool: 'shovel' | 'pickaxe', decorationId: string, targetType?: string) => { success: boolean; droppedItem: string | null };
   removedDecorationIds: string[];
   restoreDecoration: (id: string) => void;
   debugRemoveDecoration: (id: string) => void;
+  // Debug
+  isDebugClean: boolean;
+  setDebugClean: (value: boolean) => void;
+  resetDailyShovelCount: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 const TASKS_STORAGE_KEY = 'voltech_tasks_v1';
-const USER_DOC_ID = 'demo-user'; // Hardcoded for data sharing demonstration
 
 // ... (helper functions)
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user } = useAuth(); // Get authenticated user
   const [mode, setMode] = useState<Mode>('private');
   const [tasks, setTasks] = useState<Task[]>([]);
   const [workLocation, setWorkLocation] = useState<Location.LocationObject | null>(null);
@@ -75,6 +90,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [dailyShovelCount, setDailyShovelCount] = useState(0);
   const [lastShovelDate, setLastShovelDate] = useState('');
   const [removedDecorationIds, setRemovedDecorationIds] = useState<string[]>([]);
+  const [isDebugClean, setDebugClean] = useState(false); // Debug state
+
+  const resetDailyShovelCount = () => {
+    saveData({
+        garden: {
+            shovels, pickaxes, items, lastShovelDate, removedDecorationIds,
+            dailyShovelCount: 0
+        }
+    });
+  };
 
   const restoreDecoration = (id: string) => {
     const newRemovedIds = removedDecorationIds.filter(dId => dId !== id);
@@ -86,10 +111,114 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
+  const LOCAL_STORAGE_KEY = 'voltech_local_user_data_v1';
+
+  // Helper to save data (Firestore or AsyncStorage)
+  const saveData = async (updates: any) => {
+      // Optimistically update local state
+      if (updates.tasks) setTasks(updates.tasks);
+      if (updates.homeLocation !== undefined) setHomeLocation(updates.homeLocation);
+      if (updates.workLocation !== undefined) setWorkLocation(updates.workLocation);
+      if (updates.isLowEnergyMode !== undefined) setLowEnergyMode(updates.isLowEnergyMode);
+      
+      if (updates.garden) {
+          if (updates.garden.shovels !== undefined) setShovels(updates.garden.shovels);
+          if (updates.garden.pickaxes !== undefined) setPickaxes(updates.garden.pickaxes);
+          if (updates.garden.items !== undefined) setItems(updates.garden.items);
+          if (updates.garden.dailyShovelCount !== undefined) setDailyShovelCount(updates.garden.dailyShovelCount);
+          if (updates.garden.lastShovelDate !== undefined) setLastShovelDate(updates.garden.lastShovelDate);
+          if (updates.garden.removedDecorationIds !== undefined) setRemovedDecorationIds(updates.garden.removedDecorationIds);
+      }
+
+      if (user) {
+          // Firestore Sync
+          const docRef = doc(db, 'users', user.uid);
+          try {
+              await setDoc(docRef, updates, { merge: true });
+          } catch (e) {
+              console.error("Error saving data:", e);
+          }
+      } else {
+          // Local Storage Sync (Guest)
+          try {
+              // Create current full state object (using latest state refs ideally, 
+              // but updates contains the new values for what changed. 
+              // For unchanging parts, we rely on current closure state 'tasks' etc. which might be stale if multiple updates happen fast,
+              // but for this simple app it's mostly fine as updates usually include whole arrays.)
+              
+              // Actually, better to read current state inside the setValue or just use what we have.
+              // Since we just called setters, the localized state variables `tasks` etc. are still OLD in this closure execution.
+              // So we must merge `updates` into `currentData`.
+              
+              const currentData = {
+                  tasks,
+                  homeLocation,
+                  workLocation,
+                  isLowEnergyMode,
+                  garden: {
+                      shovels,
+                      pickaxes,
+                      items,
+                      dailyShovelCount,
+                      lastShovelDate,
+                      removedDecorationIds
+                  }
+              };
+
+              // Explicitly merge updates onto currentData for saving
+              const newData = { ...currentData, ...updates };
+              if (updates.garden) {
+                  newData.garden = { ...currentData.garden, ...updates.garden };
+              }
+              
+              // Note: If 'updates.tasks' is present, it replaces currentData.tasks fully, which is correct.
+
+              await AsyncStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(newData));
+          } catch (e) {
+              console.error("Error saving local data:", e);
+          }
+      }
+  };
+
   // Load tasks, locations, and garden data
-  // Sync with Firebase Firestore
+  // Sync with Firebase Firestore or Local Storage
   useEffect(() => {
-    const docRef = doc(db, 'users', USER_DOC_ID);
+    if (!user) {
+        // Load from Local Storage
+        const loadLocalData = async () => {
+            try {
+                const jsonValue = await AsyncStorage.getItem(LOCAL_STORAGE_KEY);
+                if (jsonValue != null) {
+                    const data = JSON.parse(jsonValue);
+                    setTasks(data.tasks || []);
+                    setHomeLocation(data.homeLocation || null);
+                    setWorkLocation(data.workLocation || null);
+                    setLowEnergyMode(data.isLowEnergyMode || false);
+                    
+                    const garden = data.garden || {};
+                    setShovels(garden.shovels || 0);
+                    setPickaxes(garden.pickaxes || 0);
+                    setItems(garden.items || {});
+                    setDailyShovelCount(garden.dailyShovelCount || 0);
+                    setLastShovelDate(garden.lastShovelDate || '');
+                    setRemovedDecorationIds(garden.removedDecorationIds || []);
+                } else {
+                    // Initialize empty
+                    setTasks([]);
+                    setShovels(0);
+                    setPickaxes(0);
+                    setItems({});
+                    setRemovedDecorationIds([]);
+                }
+            } catch(e) {
+                console.error("Failed to load local data", e);
+            }
+        };
+        loadLocalData();
+        return;
+    }
+
+    const docRef = doc(db, 'users', user.uid);
 
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
@@ -119,17 +248,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     return () => unsubscribe();
-  }, []);
-
-  // Helper to save data to Firestore
-  const saveData = async (updates: any) => {
-      const docRef = doc(db, 'users', USER_DOC_ID);
-      try {
-          await setDoc(docRef, updates, { merge: true });
-      } catch (e) {
-          console.error("Error saving data:", e);
-      }
-  };
+  }, [user]);
 
   const addTask = (title: string, size: TaskSize) => {
     const newTask: Task = { 
@@ -227,8 +346,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               success = true;
 
               // Drop Logic
-              if (targetType === 'crystal' || targetType === 'rock') {
-                   // Simple random drop chance
+              // Drop Logic
+              if (targetType === 'crystal') {
+                  // Crystal always drops item
+                  droppedItem = Math.random() < 0.5 ? 'rusty_watch' : 'broken_machine';
+                  newItems[droppedItem] = (newItems[droppedItem] || 0) + 1;
+              } else if (targetType === 'rock') {
+                   // Rock drops 30%
                   const dropRand = Math.random();
                   if (dropRand < 0.3) {
                       droppedItem = Math.random() < 0.5 ? 'rusty_watch' : 'broken_machine';
@@ -445,7 +569,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       isLowEnergyMode, setLowEnergyMode,
       deleteCompletedTasks,
       clearAllTasks,
-      shovels, pickaxes, items, useTool, removedDecorationIds, restoreDecoration, debugRemoveDecoration
+      shovels, pickaxes, items, dailyShovelCount, useTool, removedDecorationIds, restoreDecoration, debugRemoveDecoration,
+      isDebugClean, setDebugClean, resetDailyShovelCount
     }}>
       {children}
     </AppContext.Provider>

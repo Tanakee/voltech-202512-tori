@@ -33,7 +33,7 @@ export default function Root({ children }: PropsWithChildren) {
           }
           @font-face {
             font-family: 'Ionicons';
-            src: url(https://unpkg.com/ionicons@5.5.2/dist/fonts/ionicons.ttf) format('truetype');
+            src: url(https://cdn.jsdelivr.net/npm/ionicons@5.5.2/dist/fonts/ionicons.ttf) format('truetype');
           }
         ` }} />
       </head>

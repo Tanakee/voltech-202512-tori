@@ -4,6 +4,7 @@ import { Briefcase, Home } from 'lucide-react-native';
 import React, { useEffect } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming } from 'react-native-reanimated';
+import Mascot from './Mascot';
 
 export default function ModeSwitcher() {
   const { mode, setMode } = useApp();
@@ -33,8 +34,14 @@ export default function ModeSwitcher() {
 
   return (
     <View style={[styles.container]}>
-      <TouchableOpacity onPress={handleToggle} activeOpacity={0.9}>
-        <Animated.View style={[styles.card, { backgroundColor: theme.primary }, animatedStyle]}>
+      <Animated.View style={[styles.card, { backgroundColor: theme.primary }, animatedStyle]}>
+        
+        {/* Main Content Area: Mode Switcher */}
+        <TouchableOpacity 
+            onPress={handleToggle} 
+            activeOpacity={0.9} 
+            style={{ flexDirection: 'row', alignItems: 'center', flex: 1, paddingRight: 60 }}
+        >
           <View style={styles.header}>
             <View style={styles.iconContainer}>
               {mode === 'work' ? (
@@ -52,10 +59,12 @@ export default function ModeSwitcher() {
               </Text>
             </View>
           </View>
-          
-          <View style={styles.punchHole} />
-        </Animated.View>
-      </TouchableOpacity>
+        </TouchableOpacity>
+
+        {/* Mascot inside the card */}
+        <Mascot size={40} style={styles.mascotContainer} />
+
+      </Animated.View>
     </View>
   );
 }
@@ -64,10 +73,12 @@ const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 20,
     paddingVertical: 10,
-    width: '100%',
+    position: 'relative',
   },
   card: {
     padding: 20,
+    paddingVertical: 24, // Increased vertical padding
+    minHeight: 110,      // Ensure strict minimum height
     borderRadius: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -100,13 +111,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 2,
   },
-  punchHole: {
-    position: 'absolute',
-    top: -10,
-    right: 30,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#F2F2F2', // Match background usually, but here hardcoded for now
+  mascotContainer: {
+      position: 'absolute',
+      right: 20,
+      top: 40, // Moved further down
+      zIndex: 10,
   }
 });

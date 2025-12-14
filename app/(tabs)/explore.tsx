@@ -1,13 +1,18 @@
+import BalanceGauge from '@/components/BalanceGauge';
 import LocationMapModal from '@/components/LocationMapModal';
 import { Colors } from '@/constants/theme';
 import { useApp } from '@/context/AppContext';
-import { Briefcase, Home, Map as MapIcon, MapPin } from 'lucide-react-native';
+import { useAuth } from '@/context/AuthContext';
+import { useRouter } from 'expo-router';
+import { Briefcase, Home, LogIn, LogOut, Map as MapIcon, MapPin, RefreshCw, Sparkles } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function SettingsScreen() {
-  const { mode, registerLocation, homeLocation, workLocation } = useApp();
+  const { mode, registerLocation, homeLocation, workLocation, isDebugClean, setDebugClean, resetDailyShovelCount } = useApp();
+  const { user, logout } = useAuth();
+  const router = useRouter();
   const [showMap, setShowMap] = useState(false);
   const theme = mode === 'work' ? Colors.work : Colors.private;
 
@@ -15,6 +20,11 @@ export default function SettingsScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={[styles.headerTitle, { color: theme.text }]}>設定</Text>
+
+        <View style={styles.section}>
+            <Text style={styles.sectionTitle}>ライフバランス</Text>
+            <BalanceGauge />
+        </View>
 
         <View style={styles.section}>
             <Text style={styles.sectionTitle}>位置情報の自動切り替え</Text>
@@ -64,13 +74,86 @@ export default function SettingsScreen() {
                 <Text style={[styles.mapCheckButtonText, { color: theme.primary }]}>登録地点をマップで確認</Text>
             </TouchableOpacity>
         </View>
+
+        <View style={styles.section}>
+            <Text style={styles.sectionTitle}>アカウント</Text>
+            {/* ... (Account Card) ... */}
+            <View style={styles.card}>
+                <View style={styles.cardHeader}>
+                    <Text style={styles.cardTitle}>ログイン情報</Text>
+                </View>
+                <Text style={styles.statusText}>
+                    {user ? user.email : 'ゲスト（ローカル保存）'}
+                </Text>
+                
+                {user ? (
+                    <TouchableOpacity 
+                        style={[styles.button, { backgroundColor: '#FF6B6B' }]}
+                        onPress={logout}
+                    >
+                        <LogOut color="#FFF" size={18} />
+                        <Text style={styles.buttonText}>ログアウト</Text>
+                    </TouchableOpacity>
+                ) : (
+                    <TouchableOpacity 
+                        style={[styles.button, { backgroundColor: theme.primary }]}
+                        onPress={() => router.push('/login')}
+                    >
+                        <LogIn color="#FFF" size={18} />
+                        <Text style={styles.buttonText}>ログイン / アカウント作成</Text>
+                    </TouchableOpacity>
+                )}
+            </View>
+        </View>
+
+        {/* Debug Section */}
+        <View style={styles.section}>
+            <Text style={styles.sectionTitle}>デバッグ (開発用)</Text>
+            <View style={styles.card}>
+                <View style={styles.cardHeader}>
+                    <Sparkles color="#F59E0B" size={24} />
+                    <Text style={styles.cardTitle}>惑星シミュレーション</Text>
+                </View>
+                <Text style={styles.statusText}>
+                    {isDebugClean ? '未来の惑星 (クリーン)' : '現在の惑星'}
+                </Text>
+                <TouchableOpacity 
+                    style={[styles.button, { backgroundColor: isDebugClean ? '#EF4444' : '#F59E0B' }]}
+                    onPress={() => setDebugClean(!isDebugClean)}
+                >
+                    <Sparkles color="#FFF" size={18} />
+                    <Text style={styles.buttonText}>
+                        {isDebugClean ? '元に戻す' : '未来の惑星を見る'}
+                    </Text>
+                </TouchableOpacity>
+            </View>
+
+            <View style={styles.card}>
+                <View style={styles.cardHeader}>
+                    <RefreshCw color="#3B82F6" size={24} />
+                    <Text style={styles.cardTitle}>道具獲得リセット</Text>
+                </View>
+                <Text style={styles.statusText}>
+                    残り獲得可能数: {Math.max(0, 3 - (useApp().dailyShovelCount || 0))}/3
+                </Text>
+                <TouchableOpacity 
+                    style={[styles.button, { backgroundColor: '#3B82F6' }]}
+                    onPress={() => {
+                        resetDailyShovelCount();
+                        alert('リセットしました');
+                    }}
+                >
+                    <RefreshCw color="#FFF" size={18} />
+                    <Text style={styles.buttonText}>獲得可能数を回復する</Text>
+                </TouchableOpacity>
+            </View>
+        </View>
       </ScrollView>
 
       <LocationMapModal visible={showMap} onClose={() => setShowMap(false)} />
     </SafeAreaView>
   );
 }
-
 
 const styles = StyleSheet.create({
   container: {

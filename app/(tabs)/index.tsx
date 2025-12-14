@@ -1,4 +1,3 @@
-import Mascot from '@/components/Mascot';
 import ModeSwitcher from '@/components/ModeSwitcher';
 import TaskItem from '@/components/TaskItem';
 import { Colors } from '@/constants/theme';
@@ -92,12 +91,14 @@ export default function HomeScreen() {
                       {isLowEnergyMode ? (
                           <Battery color="#FFF" size={20} />
                       ) : (
-                          <BatteryCharging color={theme.primary} size={20} />
+                          <BatteryCharging color={theme.text} size={20} />
                       )}
                       <Text style={[styles.energyBtnText, isLowEnergyMode && { color: '#FFF' }]}>
                           {isLowEnergyMode ? 'やる気でないモード中...' : 'やる気でない...'}
                       </Text>
                   </TouchableOpacity>
+
+
               </View>
             </>
           ) : (
@@ -128,8 +129,7 @@ export default function HomeScreen() {
             />
           </View>
 
-          {/* Mascot Display - Only show when keyboard is hidden to avoid clutter */}
-          {!isKeyboardVisible && <Mascot />}
+
 
           <View style={styles.inputWrapper}>
             {/* Size Selector */}
