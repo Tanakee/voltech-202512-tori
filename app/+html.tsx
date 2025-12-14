@@ -25,7 +25,17 @@ export default function Root({ children }: PropsWithChildren) {
         <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
 
         {/* Using raw CSS to hide the splash screen immediately on web to avoid flickering */}
-        <style dangerouslySetInnerHTML={{ __html: `body { background-color: #fff; }` }} />
+        <style dangerouslySetInnerHTML={{ __html: `
+          body { background-color: #fff; }
+          @font-face {
+            font-family: 'MaterialIcons';
+            src: url(https://fonts.gstatic.com/s/materialicons/v142/flUhRq6tzZclQEJ-Vdg-IuiaDsNc.woff2) format('woff2');
+          }
+          @font-face {
+            font-family: 'Ionicons';
+            src: url(https://unpkg.com/ionicons@5.5.2/dist/fonts/ionicons.ttf) format('truetype');
+          }
+        ` }} />
       </head>
       <body>{children}</body>
     </html>
