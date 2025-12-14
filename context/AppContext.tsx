@@ -1,9 +1,8 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
-import { db } from '../config/firebase';
-import { doc, getDoc, onSnapshot, setDoc, updateDoc } from 'firebase/firestore';
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { doc, onSnapshot, setDoc } from 'firebase/firestore';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Alert } from 'react-native';
+import { db } from '../config/firebase';
 
 export type Mode = 'work' | 'private';
 export type TaskSize = 'S' | 'M' | 'L';
@@ -279,7 +278,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     saveData({ tasks: newTasks });
   };
 
-  const toggleSubTask = (taskId: string, subTaskId: string) => {
   const toggleSubTask = (taskId: string, subTaskId: string) => {
     const newTasks = tasks.map(t => {
       if (t.id === taskId) {
